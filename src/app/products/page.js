@@ -16,6 +16,13 @@ export default function ProductsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingRecords, setIsLoadingRecords] = useState(false);
   const [showRecordsModal, setShowRecordsModal] = useState(false);
+  const [showStockModal, setShowStockModal] = useState(false);
+  const [stockAdjustment, setStockAdjustment] = useState({
+    type: 'add', // 'add' 或 'subtract' 或 'set'
+    quantity: '',
+    reason: ''
+  });
+  const [isAdjustingStock, setIsAdjustingStock] = useState(false);
 
   /**
    * 获取所有商品信息
@@ -107,6 +114,93 @@ export default function ProductsPage() {
     setShowRecordsModal(false);
     setSelectedProduct(null);
     setProductOutboundRecords([]);
+  };
+
+  /**
+   * 显示库存调整模态框
+   * @param {Object} product - 商品信息
+   */
+  const showStockAdjustment = (product) => {
+    setSelectedProduct(product);
+    setStockAdjustment({
+      type: 'add',
+      quantity: '',
+      reason: ''
+    });
+    setShowStockModal(true);
+  };
+
+  /**
+   * 关闭库存调整模态框
+   */
+  const closeStockModal = () => {
+    setShowStockModal(false);
+    setSelectedProduct(null);
+    setStockAdjustment({
+      type: 'add',
+      quantity: '',
+      reason: ''
+    });
+  };
+
+  /**
+   * 处理库存调整
+   */
+  const handleStockAdjustment = async () => {
+    if (!selectedProduct || !stockAdjustment.quantity) {
+      toast.error("请输入调整数量");
+      return;
+    }
+
+    const quantity = parseInt(stockAdjustment.quantity);
+    if (isNaN(quantity) || quantity <= 0) {
+      toast.error("请输入有效的数量");
+      return;
+    }
+
+    // 如果是减少库存，检查是否会导致负库存
+    if (stockAdjustment.type === 'subtract' && quantity > selectedProduct.stock) {
+      toast.error("减少数量不能超过当前库存");
+      return;
+    }
+
+    // 如果是设置库存，检查数量是否合理
+    if (stockAdjustment.type === 'set' && quantity < 0) {
+      toast.error("库存数量不能为负数");
+      return;
+    }
+
+    setIsAdjustingStock(true);
+
+    try {
+      const response = await fetch(`/api/products/${selectedProduct.id}/stock`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          type: stockAdjustment.type,
+          quantity: quantity,
+          reason: stockAdjustment.reason || '手动调整'
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        toast.success("库存调整成功");
+        // 刷新商品列表
+        await fetchProducts();
+        closeStockModal();
+      } else {
+        toast.error("库存调整失败：" + (data.error || "未知错误"));
+      }
+    } catch (error) {
+      console.error("库存调整失败:", error);
+      toast.error("库存调整失败：网络错误");
+    } finally {
+      setIsAdjustingStock(false);
+    }
   };
 
   /**
@@ -291,6 +385,12 @@ export default function ProductsPage() {
                           >
                             查看出库记录
                           </button>
+                          <button
+                            onClick={() => showStockAdjustment(product)}
+                            className="text-green-600 hover:text-green-900"
+                          >
+                            调整库存
+                          </button>
                         </td>
                       </tr>
                     );
@@ -409,6 +509,167 @@ export default function ProductsPage() {
                   className="px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition-colors"
                 >
                   关闭
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 库存调整模态框 */}
+      {showStockModal && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className="relative top-20 mx-auto p-5 border w-11/12 max-w-md shadow-lg rounded-md bg-white">
+            <div className="mt-3">
+              {/* 模态框标题 */}
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-medium text-gray-900">
+                  调整库存 - {selectedProduct?.name}
+                </h3>
+                <button
+                  onClick={closeStockModal}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <span className="sr-only">关闭</span>
+                  <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              {/* 商品基本信息 */}
+              {selectedProduct && (
+                <div className="bg-gray-50 rounded-lg p-4 mb-4">
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <span className="text-gray-600">条形码:</span>
+                      <p className="font-mono">{selectedProduct.barcode}</p>
+                    </div>
+                    <div>
+                      <span className="text-gray-600">当前库存:</span>
+                      <p className={selectedProduct.stock > 0 ? 'text-green-600 font-semibold' : 'text-red-600 font-semibold'}>
+                        {selectedProduct.stock}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* 调整类型选择 */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  调整类型
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    onClick={() => setStockAdjustment({...stockAdjustment, type: 'add'})}
+                    className={`px-3 py-2 text-sm rounded-lg border ${
+                      stockAdjustment.type === 'add'
+                        ? 'bg-green-100 border-green-300 text-green-800'
+                        : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
+                    }`}
+                  >
+                    增加库存
+                  </button>
+                  <button
+                    onClick={() => setStockAdjustment({...stockAdjustment, type: 'subtract'})}
+                    className={`px-3 py-2 text-sm rounded-lg border ${
+                      stockAdjustment.type === 'subtract'
+                        ? 'bg-red-100 border-red-300 text-red-800'
+                        : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
+                    }`}
+                  >
+                    减少库存
+                  </button>
+                  <button
+                    onClick={() => setStockAdjustment({...stockAdjustment, type: 'set'})}
+                    className={`px-3 py-2 text-sm rounded-lg border ${
+                      stockAdjustment.type === 'set'
+                        ? 'bg-blue-100 border-blue-300 text-blue-800'
+                        : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
+                    }`}
+                  >
+                    设置库存
+                  </button>
+                </div>
+              </div>
+
+              {/* 数量输入 */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  {stockAdjustment.type === 'add' ? '增加数量' : 
+                   stockAdjustment.type === 'subtract' ? '减少数量' : '设置数量'}
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  value={stockAdjustment.quantity}
+                  onChange={(e) => setStockAdjustment({...stockAdjustment, quantity: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="请输入数量"
+                />
+                {stockAdjustment.type === 'subtract' && selectedProduct && (
+                  <p className="text-xs text-gray-500 mt-1">
+                    当前库存: {selectedProduct.stock}，最多可减少 {selectedProduct.stock}
+                  </p>
+                )}
+              </div>
+
+              {/* 调整原因 */}
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  调整原因（可选）
+                </label>
+                <input
+                  type="text"
+                  value={stockAdjustment.reason}
+                  onChange={(e) => setStockAdjustment({...stockAdjustment, reason: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="如：盘点调整、损耗、退货等"
+                />
+              </div>
+
+              {/* 预览调整结果 */}
+              {selectedProduct && stockAdjustment.quantity && (
+                <div className="mb-4 p-3 bg-blue-50 rounded-lg">
+                  <p className="text-sm text-blue-800">
+                    <span className="font-medium">调整预览：</span>
+                    {stockAdjustment.type === 'add' && 
+                      `${selectedProduct.stock} + ${stockAdjustment.quantity} = ${selectedProduct.stock + parseInt(stockAdjustment.quantity || 0)}`
+                    }
+                    {stockAdjustment.type === 'subtract' && 
+                      `${selectedProduct.stock} - ${stockAdjustment.quantity} = ${selectedProduct.stock - parseInt(stockAdjustment.quantity || 0)}`
+                    }
+                    {stockAdjustment.type === 'set' && 
+                      `${selectedProduct.stock} → ${stockAdjustment.quantity}`
+                    }
+                  </p>
+                </div>
+              )}
+
+              {/* 模态框底部按钮 */}
+              <div className="flex justify-end gap-3">
+                <button
+                  onClick={closeStockModal}
+                  className="px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition-colors"
+                  disabled={isAdjustingStock}
+                >
+                  取消
+                </button>
+                <button
+                  onClick={handleStockAdjustment}
+                  disabled={isAdjustingStock || !stockAdjustment.quantity}
+                  className={`px-4 py-2 rounded-lg transition-colors ${
+                    isAdjustingStock || !stockAdjustment.quantity
+                      ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                      : stockAdjustment.type === 'add'
+                        ? 'bg-green-600 text-white hover:bg-green-700'
+                        : stockAdjustment.type === 'subtract'
+                          ? 'bg-red-600 text-white hover:bg-red-700'
+                          : 'bg-blue-600 text-white hover:bg-blue-700'
+                  }`}
+                >
+                  {isAdjustingStock ? '调整中...' : '确认调整'}
                 </button>
               </div>
             </div>

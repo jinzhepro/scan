@@ -222,3 +222,109 @@ export async function getExpiredProducts() {
     throw error;
   }
 }
+
+/**
+ * 调整商品库存
+ * @param {number} id - 商品ID
+ * @param {Object} adjustmentData - 调整数据
+ * @param {string} adjustmentData.type - 调整类型：'add'增加、'subtract'减少、'set'设置
+ * @param {number} adjustmentData.quantity - 调整数量
+ * @param {string} adjustmentData.reason - 调整原因
+ * @returns {Object} 调整结果
+ */
+export async function adjustProductStock(id, adjustmentData) {
+  try {
+    const { type, quantity, reason } = adjustmentData;
+
+    // 验证参数
+    if (!id || isNaN(id)) {
+      throw new Error("无效的商品ID");
+    }
+
+    if (!type || !['add', 'subtract', 'set'].includes(type)) {
+      throw new Error("无效的调整类型");
+    }
+
+    if (!quantity || isNaN(quantity) || quantity <= 0) {
+      throw new Error("无效的调整数量");
+    }
+
+    // 获取当前商品信息
+    const currentProduct = await sql`
+      SELECT * FROM products WHERE id = ${id}
+    `;
+
+    if (currentProduct.length === 0) {
+      return {
+        success: false,
+        error: "商品不存在"
+      };
+    }
+
+    const product = currentProduct[0];
+    const oldStock = product.stock;
+    let newStock;
+
+    // 根据调整类型计算新库存
+    switch (type) {
+      case 'add':
+        newStock = oldStock + quantity;
+        break;
+      case 'subtract':
+        newStock = oldStock - quantity;
+        if (newStock < 0) {
+          return {
+            success: false,
+            error: `减少数量(${quantity})超过当前库存(${oldStock})`
+          };
+        }
+        break;
+      case 'set':
+        newStock = quantity;
+        if (newStock < 0) {
+          return {
+            success: false,
+            error: "库存不能设置为负数"
+          };
+        }
+        break;
+      default:
+        return {
+          success: false,
+          error: "无效的调整类型"
+        };
+    }
+
+    // 更新库存
+    const result = await sql`
+      UPDATE products 
+      SET stock = ${newStock}, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ${id}
+      RETURNING *
+    `;
+
+    if (result.length === 0) {
+      return {
+        success: false,
+        error: "库存更新失败"
+      };
+    }
+
+    console.log(`✅ 库存调整成功: ${product.name} (${product.barcode}) ${oldStock} → ${newStock} (${type}: ${quantity})`);
+
+    return {
+      success: true,
+      product: result[0],
+      oldStock,
+      newStock,
+      adjustment: {
+        type,
+        quantity,
+        reason
+      }
+    };
+  } catch (error) {
+    console.error("调整库存失败:", error);
+    throw error;
+  }
+}
