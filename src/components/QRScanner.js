@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import { toast } from 'sonner';
-import { useQRScanner } from '@/hooks/useQRScanner';
+import { toast } from "sonner";
+import { useQRScanner } from "@/hooks/useQRScanner";
 
 /**
  * 二维码扫描组件
@@ -17,15 +17,17 @@ export default function QRScanner() {
     canvasRef,
     startScanning,
     stopScanning,
-    resetScan
+    resetScan,
   } = useQRScanner();
 
   /**
    * 检测是否为iOS设备
    */
   const isIOS = () => {
-    return /iPad|iPhone|iPod/.test(navigator.userAgent) || 
-           (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    return (
+      /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+      (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1)
+    );
   };
 
   /**
@@ -43,7 +45,9 @@ export default function QRScanner() {
 
     return (
       <div className="mt-6 p-4 bg-green-50 border border-green-200 rounded-lg">
-        <h3 className="text-lg font-semibold text-green-800 mb-2">扫描成功！</h3>
+        <h3 className="text-lg font-semibold text-green-800 mb-2">
+          扫描成功！
+        </h3>
         <div className="bg-white p-3 rounded border">
           <p className="text-sm text-gray-600 mb-1">扫描内容：</p>
           <p className="font-mono text-sm break-all">{scanResult.data}</p>
@@ -72,12 +76,12 @@ export default function QRScanner() {
   const copyToClipboard = async (text) => {
     try {
       await navigator.clipboard.writeText(text);
-      toast.success('已复制到剪贴板', {
+      toast.success("已复制到剪贴板", {
         duration: 2000,
       });
     } catch (err) {
-      toast.error('复制失败', {
-        description: '请手动复制内容',
+      toast.error("复制失败", {
+        description: "请手动复制内容",
         duration: 3000,
       });
     }
@@ -87,7 +91,7 @@ export default function QRScanner() {
    * 渲染摄像头预览
    */
   const renderCameraPreview = () => {
-    if (!isScanning) return null;
+    // if (!isScanning) return null;
 
     return (
       <div className="mt-6">
@@ -95,12 +99,14 @@ export default function QRScanner() {
           {/* 视频预览 */}
           <video
             ref={videoRef}
-            className={`w-full h-64 object-cover ${isIOS() ? 'cursor-pointer' : ''}`}
+            className={`w-full h-64 object-cover ${
+              isIOS() ? "cursor-pointer" : ""
+            }`}
             playsInline
             muted
-            title={isIOS() ? '点击启动摄像头' : '摄像头预览'}
+            title={isIOS() ? "点击启动摄像头" : "摄像头预览"}
           />
-          
+
           {/* 扫描框 */}
           <div className="absolute inset-0 flex items-center justify-center">
             <div className="w-48 h-48 border-2 border-blue-500 rounded-lg relative">
@@ -109,12 +115,12 @@ export default function QRScanner() {
               <div className="absolute top-0 right-0 w-6 h-6 border-t-4 border-r-4 border-blue-500"></div>
               <div className="absolute bottom-0 left-0 w-6 h-6 border-b-4 border-l-4 border-blue-500"></div>
               <div className="absolute bottom-0 right-0 w-6 h-6 border-b-4 border-r-4 border-blue-500"></div>
-              
+
               {/* 扫描线 */}
               <div className="absolute top-1/2 left-0 right-0 h-0.5 bg-blue-500 animate-pulse"></div>
             </div>
           </div>
-          
+
           {/* 加载提示 */}
           {isLoading && (
             <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
@@ -129,7 +135,7 @@ export default function QRScanner() {
               </div>
             </div>
           )}
-          
+
           {/* iOS 特殊提示覆盖层 */}
           {isScanning && !isLoading && isIOS() && (
             <div className="absolute top-2 left-2 right-2 bg-black bg-opacity-70 text-white text-xs p-2 rounded">
@@ -137,10 +143,10 @@ export default function QRScanner() {
             </div>
           )}
         </div>
-        
+
         {/* 隐藏的画布用于图像处理 */}
         <canvas ref={canvasRef} className="hidden" />
-        
+
         {/* 停止按钮 */}
         <div className="mt-4 text-center">
           <button
@@ -158,7 +164,7 @@ export default function QRScanner() {
     <div className="max-w-md mx-auto p-6">
       <div className="text-center">
         <h2 className="text-2xl font-bold text-gray-800 mb-4">二维码扫描器</h2>
-        
+
         {/* 开始扫描按钮 */}
         {!isScanning && !scanResult && (
           <div className="space-y-3">
@@ -167,15 +173,13 @@ export default function QRScanner() {
               disabled={isLoading}
               className="px-8 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {isLoading ? '启动中...' : '开始扫描'}
+              {isLoading ? "启动中..." : "开始扫描"}
             </button>
-            
+
             {/* 重试按钮 - 仅在加载状态下显示 */}
             {isLoading && (
               <div className="text-center">
-                <p className="text-sm text-gray-600 mb-2">
-                  启动时间较长？
-                </p>
+                <p className="text-sm text-gray-600 mb-2">启动时间较长？</p>
                 <button
                   onClick={() => {
                     stopScanning();
@@ -208,9 +212,15 @@ export default function QRScanner() {
             <li>• 支持各种类型的二维码和条形码</li>
             {isIOS() && (
               <>
-                <li className="text-orange-600 font-medium">• iPhone/iPad 用户：如摄像头未启动，请点击视频区域</li>
-                <li className="text-orange-600">• 建议使用 Safari 浏览器获得最佳体验</li>
-                <li className="text-orange-600">• 请确保允许摄像头权限并在 HTTPS 环境下访问</li>
+                <li className="text-orange-600 font-medium">
+                  • iPhone/iPad 用户：如摄像头未启动，请点击视频区域
+                </li>
+                <li className="text-orange-600">
+                  • 建议使用 Safari 浏览器获得最佳体验
+                </li>
+                <li className="text-orange-600">
+                  • 请确保允许摄像头权限并在 HTTPS 环境下访问
+                </li>
               </>
             )}
           </ul>
