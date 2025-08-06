@@ -3,8 +3,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { 
   BrowserMultiFormatReader,
-  BarcodeFormat, 
-  DecodeHintType, 
   NotFoundException
 } from '@zxing/library';
 import { toast } from 'sonner';
@@ -29,29 +27,8 @@ export function useQRScanner() {
    * @returns {BrowserMultiFormatReader} 配置好的解码器实例
    */
   const createDecoder = useCallback(() => {
-    const hints = new Map();
-    const formats = [
-      BarcodeFormat.QR_CODE,
-      BarcodeFormat.DATA_MATRIX,
-      BarcodeFormat.CODE_128,
-      BarcodeFormat.CODE_39,
-      BarcodeFormat.EAN_13,
-      BarcodeFormat.EAN_8,
-      BarcodeFormat.UPC_A,
-      BarcodeFormat.UPC_E,
-      BarcodeFormat.CODABAR,
-      BarcodeFormat.ITF,
-      BarcodeFormat.RSS_14,
-      BarcodeFormat.AZTEC,
-      BarcodeFormat.PDF_417
-    ];
-    
-    hints.set(DecodeHintType.POSSIBLE_FORMATS, formats);
-    hints.set(DecodeHintType.TRY_HARDER, true);
-    
-    const reader = new BrowserMultiFormatReader(hints);
-    
-    return reader;
+    // 使用默认配置，支持所有格式
+    return new BrowserMultiFormatReader();
   }, []);
 
   /**
@@ -65,7 +42,7 @@ export function useQRScanner() {
     try {
       // 使用 BrowserMultiFormatReader 的 decodeFromCanvas 方法
       const result = await reader.decodeFromCanvas(canvas);
-      return result.getText();
+      return result.text; // 直接返回 text 属性
     } catch (error) {
       if (error instanceof NotFoundException) {
         throw new Error('未检测到条形码');
