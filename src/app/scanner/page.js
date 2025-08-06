@@ -6,27 +6,42 @@ import { BrowserMultiFormatReader, NotFoundException } from "@zxing/library";
 
 /**
  * 条形码/二维码扫描页面组件
- * 基于ZXing库实现从摄像头实时扫描功能
+ * 使用ZXing库实现高精度摄像头扫描功能
  */
 export default function ScannerPage() {
   // 状态管理
   const [result, setResult] = useState("");
   const [isScanning, setIsScanning] = useState(false);
+  const [scanCount, setScanCount] = useState(0);
+  const [lastScanTime, setLastScanTime] = useState(0);
 
   // DOM引用
   const videoRef = useRef(null);
   const codeReaderRef = useRef(null);
+  const scanFrameRef = useRef(null);
 
   /**
    * 组件初始化
-   * 创建代码读取器
+   * 创建高精度代码读取器并配置优化参数
    */
   useEffect(() => {
-    console.log('🚀 Initializing scanner component...');
+    console.log('🚀 Initializing high-precision scanner component...');
     
-    // 创建ZXing代码读取器实例
-    codeReaderRef.current = new BrowserMultiFormatReader();
-    console.log('📖 ZXing code reader created:', codeReaderRef.current);
+    // 创建ZXing代码读取器实例，配置优化参数
+    const hints = new Map();
+    // 启用所有支持的格式以提高识别率
+    hints.set('POSSIBLE_FORMATS', [
+      'QR_CODE', 'DATA_MATRIX', 'UPC_E', 'UPC_A', 'EAN_8', 'EAN_13',
+      'CODE_128', 'CODE_39', 'CODE_93', 'CODABAR', 'ITF', 'RSS_14',
+      'RSS_EXPANDED', 'PDF_417', 'AZTEC', 'MAXICODE'
+    ]);
+    // 尝试更难的模式以提高精确度
+    hints.set('TRY_HARDER', true);
+    // 纯条形码模式，减少误识别
+    hints.set('PURE_BARCODE', false);
+    
+    codeReaderRef.current = new BrowserMultiFormatReader(hints);
+    console.log('📖 High-precision ZXing code reader created with optimized hints');
 
     // 组件卸载时清理资源
     return () => {
@@ -37,11 +52,11 @@ export default function ScannerPage() {
   }, []);
 
   /**
-   * 开始扫描功能
-   * 使用默认摄像头开始连续扫描
+   * 开始高精度扫描功能
+   * 使用优化的摄像头配置开始连续扫描
    */
-  const handleStartScan = () => {
-    console.log('🎯 Starting scan process...');
+  const handleStartScan = async () => {
+    console.log('🎯 Starting high-precision scan process...');
     
     if (!videoRef.current) {
       console.error('❌ Cannot start scan: missing video element');
@@ -52,29 +67,66 @@ export default function ScannerPage() {
 
     setIsScanning(true);
     setResult('');
+    setScanCount(0);
+    setLastScanTime(Date.now());
 
-    codeReaderRef.current.decodeFromVideoDevice(
-      undefined, // 使用默认摄像头
-      videoRef.current,
-      (result, err) => {
-        if (result) {
-          console.log('🎉 Scan result found:', result);
-          console.log('📝 Result text:', result.text);
-          setResult(result.text);
+    try {
+      // 配置高分辨率视频约束以提高扫描精确度
+      const constraints = {
+        video: {
+          facingMode: 'environment', // 优先使用后置摄像头
+          width: { ideal: 1920, min: 640 },
+          height: { ideal: 1080, min: 480 },
+          frameRate: { ideal: 30, min: 15 },
+          focusMode: 'continuous',
+          exposureMode: 'continuous',
+          whiteBalanceMode: 'continuous'
         }
-        if (err && !(err instanceof NotFoundException)) {
-          console.error('❌ Scan error:', err);
-          setResult(`Error: ${err.message}`);
-        }
-      }
-    );
+      };
 
-    console.log('✅ Started continuous decode from default camera');
+      console.log('📷 Requesting high-resolution camera with constraints:', constraints);
+
+      // 开始扫描，使用优化的回调函数
+      await codeReaderRef.current.decodeFromConstraints(
+        constraints,
+        videoRef.current,
+        (result, err) => {
+          const currentTime = Date.now();
+          setScanCount(prev => prev + 1);
+          
+          if (result) {
+            const scanDuration = currentTime - lastScanTime;
+            console.log('🎉 Scan result found:', result);
+            console.log('📝 Result text:', result.text);
+            console.log('⏱️ Scan duration:', scanDuration + 'ms');
+            console.log('🔢 Total scan attempts:', scanCount + 1);
+            
+            setResult(result.text);
+            // 成功扫描后可以选择停止扫描
+            // handleReset();
+          }
+          
+          if (err && !(err instanceof NotFoundException)) {
+            console.error('❌ Scan error:', err);
+            // 只在严重错误时显示错误信息
+            if (err.name !== 'NotFoundError') {
+              setResult(`扫描错误: ${err.message}`);
+            }
+          }
+        }
+      );
+
+      console.log('✅ Started high-precision continuous decode with optimized constraints');
+    } catch (error) {
+      console.error('❌ Failed to start scanning:', error);
+      setResult(`启动扫描失败: ${error.message}`);
+      setIsScanning(false);
+    }
   };
 
   /**
    * 重置扫描器
-   * 停止扫描并清除结果
+   * 停止扫描并清除所有状态
    */
   const handleReset = () => {
     console.log('🔄 Resetting scanner...');
@@ -85,7 +137,9 @@ export default function ScannerPage() {
     }
     setIsScanning(false);
     setResult('');
-    console.log('🧹 UI state cleared');
+    setScanCount(0);
+    setLastScanTime(0);
+    console.log('🧹 All states cleared');
   };
 
 
@@ -96,11 +150,15 @@ export default function ScannerPage() {
         {/* 页面标题 */}
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-4">
-            条形码/二维码扫描器
+            高精度条形码/二维码扫描器
           </h1>
           <p className="text-gray-600 max-w-2xl mx-auto">
-            使用ZXing JavaScript库从设备摄像头扫描任何支持的1D/2D码。
+            使用优化的ZXing JavaScript库从高分辨率摄像头扫描任何支持的1D/2D码。
+            支持多种格式，采用高精度算法提升识别准确率。
           </p>
+          <div className="mt-4 text-sm text-blue-600">
+            💡 提示：将条码对准红色虚线框内，保持稳定以获得最佳扫描效果
+          </div>
         </div>
 
         {/* 控制按钮 */}
@@ -122,14 +180,43 @@ export default function ScannerPage() {
 
         {/* 视频预览区域 */}
         <div className="flex justify-center mb-6">
-          <div className="bg-white rounded-lg shadow-lg p-4">
+          <div className="bg-white rounded-lg shadow-lg p-4 relative">
             <video
               ref={videoRef}
-              width="400"
-              height="300"
+              width="640"
+              height="480"
               className="border border-gray-300 rounded"
               style={{ objectFit: "cover" }}
             />
+            
+            {/* 扫描提示框 */}
+            <div 
+              ref={scanFrameRef}
+              className={`absolute inset-4 border-2 border-red-500 border-dashed rounded pointer-events-none scan-frame ${isScanning ? 'opacity-100' : 'opacity-70'}`}
+              style={{
+                top: '25%',
+                left: '25%',
+                right: '25%',
+                bottom: '25%',
+                animation: isScanning ? 'pulse 2s infinite' : 'none'
+              }}
+            >
+              <div className="absolute -top-6 left-1/2 transform -translate-x-1/2 bg-red-500 text-white px-2 py-1 rounded text-xs">
+                将条码对准此区域
+              </div>
+              
+              {/* 扫描线动画 */}
+              {isScanning && (
+                <div className="scan-line"></div>
+              )}
+            </div>
+            
+            {/* 扫描统计信息 */}
+            {isScanning && (
+              <div className="absolute top-2 right-2 bg-black bg-opacity-70 text-white px-2 py-1 rounded text-xs">
+                扫描次数: {scanCount}
+              </div>
+            )}
           </div>
         </div>
 
