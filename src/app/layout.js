@@ -1,6 +1,6 @@
 import { Geist, Geist_Mono } from "next/font/google";
-import { Toaster } from 'sonner';
-import VConsole from '../components/VConsole';
+import { Toaster } from "sonner";
+import VConsole from "../components/VConsole";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -35,12 +35,7 @@ export default function RootLayout({ children }) {
       >
         <VConsole />
         {children}
-        <Toaster 
-          position="top-center"
-          richColors
-          closeButton
-          duration={4000}
-        />
+        <Toaster position="top-center" richColors closeButton duration={4000} />
       </body>
     </html>
   );

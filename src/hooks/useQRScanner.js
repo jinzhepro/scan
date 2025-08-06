@@ -451,32 +451,51 @@ export function useQRScanner() {
       });
       
       // 使用 ZXing 识别条形码
-        try {
-          console.log('🔍 开始ZXing条形码识别...');
-          
-          // 创建 BrowserMultiFormatReader 实例
-          const codeReader = new BrowserMultiFormatReader();
-          
-          // 尝试从Canvas识别条形码
-          let result = null;
-          
+      try {
+        console.log('🔍 开始ZXing条形码识别...');
+        console.log('📚 ZXing库检查:', {
+          BrowserMultiFormatReader: typeof BrowserMultiFormatReader,
+          NotFoundException: typeof NotFoundException
+        });
+        
+        // 创建 BrowserMultiFormatReader 实例
+        const codeReader = new BrowserMultiFormatReader();
+        console.log('✅ BrowserMultiFormatReader 实例创建成功');
+        
+        // 尝试多种识别方式
+        const tryDecode = async () => {
           try {
             // 方式1: 从Canvas元素识别
-            result = codeReader.decodeFromCanvas(canvas);
-            console.log('✅ 从Canvas识别成功');
-          } catch (e1) {
-            console.log('❌ Canvas识别失败:', e1.message);
+            console.log('🔍 尝试从Canvas识别...');
+            const result = await codeReader.decodeFromCanvas(canvas);
+            return result;
+          } catch (canvasError) {
+            console.log('❌ Canvas识别失败:', canvasError.message);
             
             try {
               // 方式2: 从ImageData识别
-              result = codeReader.decodeFromImageData(imageData);
-              console.log('✅ 从ImageData识别成功');
-            } catch (e2) {
-              console.log('❌ ImageData识别失败:', e2.message);
+              console.log('🔍 尝试从ImageData识别...');
+              const result = await codeReader.decodeFromImageData(imageData);
+              return result;
+            } catch (imageDataError) {
+              console.log('❌ ImageData识别失败:', imageDataError.message);
+              
+              try {
+                // 方式3: 从视频元素直接识别
+                console.log('🔍 尝试从视频元素识别...');
+                const result = await codeReader.decodeFromVideoElement(video);
+                return result;
+              } catch (videoError) {
+                console.log('❌ 视频元素识别失败:', videoError.message);
+                throw videoError;
+              }
             }
           }
-          
-          if (result) {
+        };
+        
+        // 执行识别
+        tryDecode()
+          .then(result => {
             console.log('🎉 条形码识别成功!', {
               text: result.getText(),
               format: result.getBarcodeFormat().toString(),
@@ -498,16 +517,16 @@ export function useQRScanner() {
             });
             
             stopScanning();
-            return;
-          } else {
-            console.log('🔍 未识别到条形码');
-          }
-        } catch (err) {
-          // ZXing 识别失败是正常的，不需要处理
-          if (!(err instanceof NotFoundException)) {
-            console.warn('⚠️ 条形码识别错误:', err);
-          }
-        }
+          })
+          .catch(err => {
+            // ZXing 识别失败是正常的，不需要处理
+            if (!(err instanceof NotFoundException)) {
+              console.warn('⚠️ 条形码识别错误:', err);
+            }
+          });
+      } catch (err) {
+        console.warn('⚠️ 条形码识别初始化错误:', err);
+      }
     } else {
       console.log('⏳ 视频未准备就绪，readyState:', video.readyState);
     }

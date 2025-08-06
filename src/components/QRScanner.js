@@ -44,8 +44,6 @@ export default function QRScanner() {
     return /Android/i.test(navigator.userAgent);
   };
 
-
-
   /**
    * 复制扫描结果到剪贴板
    */
@@ -75,10 +73,10 @@ export default function QRScanner() {
           扫描成功！
         </h3>
         <div className="mb-2">
-            <span className="inline-block px-2 py-1 bg-green-100 text-green-800 text-sm rounded">
-              条形码 ({scanResult.type})
-            </span>
-          </div>
+          <span className="inline-block px-2 py-1 bg-green-100 text-green-800 text-sm rounded">
+            条形码 ({scanResult.type})
+          </span>
+        </div>
         <div className="bg-white p-3 rounded border">
           <p className="text-sm text-gray-600 mb-1">扫描内容：</p>
           <p className="font-mono text-sm break-all">{scanResult.data}</p>
@@ -178,15 +176,20 @@ export default function QRScanner() {
     <div className="max-w-md mx-auto p-6">
       <div className="text-center">
         <h2 className="text-2xl font-bold text-gray-800 mb-4">条形码扫描器</h2>
-        
+
         {/* 调试信息 */}
         <div className="mb-4 p-2 bg-gray-100 rounded text-xs text-left">
-          <p><strong>调试状态:</strong></p>
-          <p>设备类型: {isIOS() ? '📱 iOS' : isAndroid() ? '🤖 Android' : '💻 其他'}</p>
-          <p>isScanning: {isScanning ? '✅' : '❌'}</p>
-          <p>isLoading: {isLoading ? '⏳' : '✅'}</p>
-          <p>scanResult: {scanResult ? '✅' : '❌'}</p>
-          <p>error: {error ? '❌' : '✅'}</p>
+          <p>
+            <strong>调试状态:</strong>
+          </p>
+          <p>
+            设备类型:{" "}
+            {isIOS() ? "📱 iOS" : isAndroid() ? "🤖 Android" : "💻 其他"}
+          </p>
+          <p>isScanning: {isScanning ? "✅" : "❌"}</p>
+          <p>isLoading: {isLoading ? "⏳" : "✅"}</p>
+          <p>scanResult: {scanResult ? "✅" : "❌"}</p>
+          <p>error: {error ? "❌" : "✅"}</p>
         </div>
 
         {/* 开始扫描按钮 */}
@@ -194,7 +197,7 @@ export default function QRScanner() {
           <div className="space-y-3">
             <button
               onClick={() => {
-                console.log('🔘 用户点击了开始扫描按钮');
+                console.log("🔘 用户点击了开始扫描按钮");
                 startScanning();
               }}
               disabled={isLoading}
@@ -233,11 +236,11 @@ export default function QRScanner() {
         <div className="mt-8 p-4 bg-gray-50 rounded-lg">
           <h3 className="font-semibold text-gray-800 mb-2">使用说明：</h3>
           <ul className="text-sm text-gray-600 space-y-1">
-              <li>• 点击&ldquo;开始扫描&rdquo;按钮启动摄像头</li>
-              <li>• 将条形码对准摄像头扫描框内</li>
-              <li>• 保持适当距离，确保条形码清晰可见</li>
-              <li>• 支持多种格式：EAN、UPC、Code128、Code39等</li>
-              <li>• 扫描成功后会自动显示结果和格式类型</li>
+            <li>• 点击&ldquo;开始扫描&rdquo;按钮启动摄像头</li>
+            <li>• 将条形码对准摄像头扫描框内</li>
+            <li>• 保持适当距离，确保条形码清晰可见</li>
+            <li>• 支持多种格式：EAN、UPC、Code128、Code39等</li>
+            <li>• 扫描成功后会自动显示结果和格式类型</li>
             {isIOS() && (
               <>
                 <li className="text-orange-600 font-medium">
