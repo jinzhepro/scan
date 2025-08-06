@@ -2,13 +2,10 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { 
-  MultiFormatReader, 
+  BrowserMultiFormatReader,
   BarcodeFormat, 
   DecodeHintType, 
-  NotFoundException,
-  RGBLuminanceSource,
-  BinaryBitmap,
-  HybridBinarizer
+  NotFoundException
 } from '@zxing/library';
 import { toast } from 'sonner';
 
@@ -29,7 +26,7 @@ export function useQRScanner() {
 
   /**
    * 创建 ZXing 解码器实例
-   * @returns {MultiFormatReader} 配置好的解码器实例
+   * @returns {BrowserMultiFormatReader} 配置好的解码器实例
    */
   const createDecoder = useCallback(() => {
     const hints = new Map();
@@ -45,7 +42,6 @@ export function useQRScanner() {
       BarcodeFormat.CODABAR,
       BarcodeFormat.ITF,
       BarcodeFormat.RSS_14,
-      BarcodeFormat.RSS_EXPANDED,
       BarcodeFormat.AZTEC,
       BarcodeFormat.PDF_417
     ];
@@ -53,8 +49,7 @@ export function useQRScanner() {
     hints.set(DecodeHintType.POSSIBLE_FORMATS, formats);
     hints.set(DecodeHintType.TRY_HARDER, true);
     
-    const reader = new MultiFormatReader();
-    reader.setHints(hints);
+    const reader = new BrowserMultiFormatReader(hints);
     
     return reader;
   }, []);
@@ -66,26 +61,17 @@ export function useQRScanner() {
    */
   const decodeFromCanvas = useCallback(async (canvas) => {
     const reader = createDecoder();
-    const ctx = canvas.getContext('2d');
-    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
     
-    // 将 ImageData 转换为字节数组
-    const data = imageData.data;
-    const rgbArray = new Uint8ClampedArray(canvas.width * canvas.height * 3);
-    
-    for (let i = 0, j = 0; i < data.length; i += 4, j += 3) {
-      rgbArray[j] = data[i];     // R
-      rgbArray[j + 1] = data[i + 1]; // G
-      rgbArray[j + 2] = data[i + 2]; // B
+    try {
+      // 使用 BrowserMultiFormatReader 的 decodeFromCanvas 方法
+      const result = await reader.decodeFromCanvas(canvas);
+      return result.getText();
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw new Error('未检测到条形码');
+      }
+      throw error;
     }
-    
-    // 创建 LuminanceSource 和 BinaryBitmap
-    const luminanceSource = new RGBLuminanceSource(rgbArray, canvas.width, canvas.height);
-    const binaryBitmap = new BinaryBitmap(new HybridBinarizer(luminanceSource));
-    
-    // 解码
-    const result = reader.decode(binaryBitmap);
-    return result.getText();
   }, [createDecoder]);
 
   /**
