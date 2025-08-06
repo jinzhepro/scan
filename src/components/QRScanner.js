@@ -21,6 +21,21 @@ export default function QRScanner() {
   } = useQRScanner();
 
   /**
+   * 检测是否为iOS设备
+   */
+  const isIOS = () => {
+    return /iPad|iPhone|iPod/.test(navigator.userAgent) || 
+           (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  };
+
+  /**
+   * 检测是否为Safari浏览器
+   */
+  const isSafari = () => {
+    return /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+  };
+
+  /**
    * 渲染扫描结果
    */
   const renderScanResult = () => {
@@ -80,9 +95,10 @@ export default function QRScanner() {
           {/* 视频预览 */}
           <video
             ref={videoRef}
-            className="w-full h-64 object-cover"
+            className={`w-full h-64 object-cover ${isIOS() ? 'cursor-pointer' : ''}`}
             playsInline
             muted
+            title={isIOS() ? '点击启动摄像头' : '摄像头预览'}
           />
           
           {/* 扫描框 */}
@@ -158,6 +174,13 @@ export default function QRScanner() {
             <li>• 将二维码对准扫描框</li>
             <li>• 系统会自动识别并显示结果</li>
             <li>• 支持各种类型的二维码和条形码</li>
+            {isIOS() && (
+              <>
+                <li className="text-orange-600 font-medium">• iPhone/iPad 用户：如摄像头未启动，请点击视频区域</li>
+                <li className="text-orange-600">• 建议使用 Safari 浏览器获得最佳体验</li>
+                <li className="text-orange-600">• 请确保允许摄像头权限并在 HTTPS 环境下访问</li>
+              </>
+            )}
           </ul>
         </div>
       )}

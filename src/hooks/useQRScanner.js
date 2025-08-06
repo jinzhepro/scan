@@ -20,6 +20,21 @@ export function useQRScanner() {
   const animationRef = useRef(null);
 
   /**
+   * 检测是否为iOS设备
+   */
+  const isIOS = useCallback(() => {
+    return /iPad|iPhone|iPod/.test(navigator.userAgent) || 
+           (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  }, []);
+
+  /**
+   * 检测是否为Safari浏览器
+   */
+  const isSafari = useCallback(() => {
+    return /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+  }, []);
+
+  /**
    * 启动摄像头并开始扫描
    */
   const startScanning = useCallback(async () => {
@@ -42,67 +57,174 @@ export function useQRScanner() {
         throw new Error('摄像头功能需要在 HTTPS 环境下使用，请使用 HTTPS 访问或在本地环境测试');
       }
 
-      // 移动端优化的摄像头配置
-      const constraints = {
+      // iOS Safari 特殊处理
+      const isIOSDevice = isIOS();
+      const isSafariBrowser = isSafari();
+
+      // 基础摄像头配置
+      let constraints = {
         video: {
-          facingMode: { ideal: 'environment' }, // 优先使用后置摄像头
-          width: { ideal: 1280, max: 1920 },
-          height: { ideal: 720, max: 1080 },
-          // 移动端优化
-          aspectRatio: { ideal: 16/9 },
-          frameRate: { ideal: 30, max: 60 }
+          facingMode: 'environment', // iOS Safari 更喜欢简单的字符串
         },
         audio: false
       };
 
-      // 请求摄像头权限
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      // 非iOS设备或非Safari浏览器可以使用更复杂的配置
+      if (!isIOSDevice || !isSafariBrowser) {
+        constraints.video = {
+          facingMode: { ideal: 'environment' },
+          width: { ideal: 1280, max: 1920 },
+          height: { ideal: 720, max: 1080 },
+          aspectRatio: { ideal: 16/9 },
+          frameRate: { ideal: 30, max: 60 }
+        };
+      }
+
+      let stream = null;
+      
+      try {
+        // 首次尝试获取摄像头
+        stream = await navigator.mediaDevices.getUserMedia(constraints);
+      } catch (firstError) {
+        console.warn('首次摄像头请求失败，尝试简化配置:', firstError);
+        
+        // 如果失败，尝试最简单的配置
+        const fallbackConstraints = {
+          video: true,
+          audio: false
+        };
+        
+        try {
+          stream = await navigator.mediaDevices.getUserMedia(fallbackConstraints);
+        } catch (secondError) {
+          // 如果还是失败，尝试只请求后置摄像头
+          const backCameraConstraints = {
+            video: { facingMode: 'environment' },
+            audio: false
+          };
+          stream = await navigator.mediaDevices.getUserMedia(backCameraConstraints);
+        }
+      }
+
       streamRef.current = stream;
       
-      if (videoRef.current) {
+      if (videoRef.current && stream) {
         videoRef.current.srcObject = stream;
         
-        // 移动端播放优化
+        // iOS Safari 特殊属性设置
         videoRef.current.setAttribute('playsinline', true);
         videoRef.current.setAttribute('webkit-playsinline', true);
+        videoRef.current.setAttribute('muted', true);
         videoRef.current.muted = true;
         
-        await videoRef.current.play();
-        setIsScanning(true);
-        
-        // 等待视频加载完成后开始扫描
-        videoRef.current.onloadedmetadata = () => {
+        // iOS 特殊属性
+        if (isIOSDevice) {
+          videoRef.current.setAttribute('x5-playsinline', true);
+          videoRef.current.setAttribute('x5-video-player-type', 'h5');
+          videoRef.current.setAttribute('x5-video-player-fullscreen', false);
+        }
+
+        // 设置视频事件监听
+        const handleVideoReady = () => {
           setIsLoading(false);
+          setIsScanning(true);
           scanQRCode();
         };
+
+        const handleVideoError = (error) => {
+          console.error('视频播放错误:', error);
+          toast.error('视频播放失败', {
+            description: isIOSDevice ? '请点击视频区域手动启动' : '请检查摄像头设置',
+            duration: 4000,
+          });
+        };
+
+        // 添加事件监听器
+        videoRef.current.onloadedmetadata = handleVideoReady;
+        videoRef.current.onerror = handleVideoError;
+
+        try {
+          // 尝试自动播放
+          await videoRef.current.play();
+          
+          // 如果是iOS设备，给用户一个提示
+          if (isIOSDevice && isSafariBrowser) {
+            toast.info('iOS 设备提示', {
+              description: '如果摄像头未启动，请点击视频区域',
+              duration: 3000,
+            });
+          }
+        } catch (playError) {
+          console.warn('自动播放失败:', playError);
+          
+          // iOS Safari 经常需要用户交互才能播放
+          if (isIOSDevice) {
+            toast.info('需要手动启动', {
+              description: '请点击视频区域启动摄像头',
+              duration: 5000,
+            });
+            
+            // 添加点击事件监听器
+            const handleVideoClick = async () => {
+              try {
+                await videoRef.current.play();
+                toast.success('摄像头已启动', {
+                  description: '开始扫描二维码',
+                  duration: 2000,
+                });
+                videoRef.current.removeEventListener('click', handleVideoClick);
+              } catch (clickPlayError) {
+                console.error('点击播放失败:', clickPlayError);
+                toast.error('播放失败', {
+                  description: '请检查摄像头权限',
+                  duration: 3000,
+                });
+              }
+            };
+            
+            if (videoRef.current) {
+              videoRef.current.addEventListener('click', handleVideoClick);
+            }
+          } else {
+            throw playError;
+          }
+        }
       }
     } catch (err) {
       console.error('启动摄像头失败:', err);
       
       let errorMessage = '无法访问摄像头';
+      let description = '请检查设备权限和网络环境';
       
       if (err.name === 'NotAllowedError') {
-        errorMessage = '摄像头权限被拒绝，请在浏览器设置中允许访问摄像头';
+        errorMessage = '摄像头权限被拒绝';
+        description = isIOS() ? '请在Safari设置中允许摄像头访问' : '请在浏览器设置中允许摄像头访问';
       } else if (err.name === 'NotFoundError') {
         errorMessage = '未找到摄像头设备';
+        description = '请检查设备是否有摄像头';
       } else if (err.name === 'NotSupportedError') {
-        errorMessage = '您的设备不支持摄像头功能';
+        errorMessage = '设备不支持摄像头功能';
+        description = '请使用支持摄像头的设备';
       } else if (err.name === 'NotReadableError') {
-        errorMessage = '摄像头被其他应用占用，请关闭其他使用摄像头的应用';
+        errorMessage = '摄像头被占用';
+        description = '请关闭其他使用摄像头的应用';
+      } else if (err.name === 'OverconstrainedError') {
+        errorMessage = '摄像头配置不支持';
+        description = '设备摄像头不支持当前配置';
       } else if (err.message) {
         errorMessage = err.message;
       }
       
       // 使用 Sonner toast 显示错误消息
       toast.error(errorMessage, {
-        description: '请检查设备权限和网络环境',
+        description: description,
         duration: 5000,
       });
       
       setError(errorMessage);
       setIsLoading(false);
     }
-  }, []);
+  }, [isIOS, isSafari]);
 
   /**
    * 停止扫描并关闭摄像头
