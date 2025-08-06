@@ -10,10 +10,12 @@ import { BrowserMultiFormatReader, NotFoundException } from "@zxing/library";
  */
 export default function ScannerPage() {
   // 状态管理
-  const [result, setResult] = useState("");
   const [isScanning, setIsScanning] = useState(false);
+  const [result, setResult] = useState("");
   const [scanCount, setScanCount] = useState(0);
   const [lastScanTime, setLastScanTime] = useState(0);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editableResult, setEditableResult] = useState("");
 
   // DOM引用
   const videoRef = useRef(null);
@@ -120,6 +122,8 @@ export default function ScannerPage() {
             console.log("🔢 Total scan attempts:", scanCount + 1);
 
             setResult(result.text);
+            setEditableResult(result.text);
+            setIsEditing(false); // 新扫描结果时退出编辑模式
             // 成功扫描后可以选择停止扫描
             // handleReset();
           }
@@ -145,6 +149,38 @@ export default function ScannerPage() {
   };
 
   /**
+   * 开始编辑扫描结果
+   */
+  const handleStartEdit = () => {
+    setIsEditing(true);
+    setEditableResult(result);
+  };
+
+  /**
+   * 保存编辑的结果
+   */
+  const handleSaveEdit = () => {
+    setResult(editableResult);
+    setIsEditing(false);
+    console.log("✅ Result edited and saved:", editableResult);
+  };
+
+  /**
+   * 取消编辑
+   */
+  const handleCancelEdit = () => {
+    setIsEditing(false);
+    setEditableResult(result);
+  };
+
+  /**
+   * 处理编辑内容变化
+   */
+  const handleEditChange = (e) => {
+    setEditableResult(e.target.value);
+  };
+
+  /**
    * 重置扫描器
    * 停止扫描并清除所有状态
    */
@@ -159,6 +195,8 @@ export default function ScannerPage() {
     setResult("");
     setScanCount(0);
     setLastScanTime(0);
+    setIsEditing(false);
+    setEditableResult("");
     console.log("🧹 All states cleared");
   };
 
@@ -215,14 +253,61 @@ export default function ScannerPage() {
 
         {/* 扫描结果显示 */}
         <div className="max-w-2xl mx-auto">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            扫描结果:
-          </label>
-          <div className="bg-white border border-gray-300 rounded-lg p-4 min-h-[100px]">
-            <pre className="whitespace-pre-wrap text-sm text-gray-900 font-mono">
-              {result || "等待扫描结果..."}
-            </pre>
+          <div className="flex justify-between items-center mb-2">
+            <label className="block text-sm font-medium text-gray-700">
+              扫描结果:
+            </label>
+            {result && !isEditing && (
+              <button
+                onClick={handleStartEdit}
+                className="text-blue-600 hover:text-blue-800 text-sm font-medium flex items-center gap-1"
+              >
+                ✏️ 编辑
+              </button>
+            )}
           </div>
+
+          {isEditing ? (
+            // 编辑模式
+            <div className="space-y-3">
+              <textarea
+                value={editableResult}
+                onChange={handleEditChange}
+                className="w-full bg-white border border-gray-300 rounded-lg p-4 min-h-[100px] text-sm text-gray-900 font-mono resize-vertical focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                placeholder="编辑扫描结果..."
+                autoFocus
+              />
+              <div className="flex justify-end gap-2">
+                <button
+                  onClick={handleCancelEdit}
+                  className="bg-gray-500 hover:bg-gray-600 text-white font-medium py-1 px-3 rounded text-sm transition-colors"
+                >
+                  取消
+                </button>
+                <button
+                  onClick={handleSaveEdit}
+                  className="bg-green-500 hover:bg-green-600 text-white font-medium py-1 px-3 rounded text-sm transition-colors"
+                >
+                  保存
+                </button>
+              </div>
+            </div>
+          ) : (
+            // 显示模式
+            <div className="bg-white border border-gray-300 rounded-lg p-4 min-h-[100px] relative group">
+              <pre className="whitespace-pre-wrap text-sm text-gray-900 font-mono">
+                {result || "等待扫描结果..."}
+              </pre>
+              {result && (
+                <button
+                  onClick={handleStartEdit}
+                  className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-blue-500 hover:bg-blue-600 text-white text-xs px-2 py-1 rounded"
+                >
+                  编辑
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
         {/* 返回首页链接 */}
