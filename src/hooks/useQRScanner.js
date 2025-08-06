@@ -408,12 +408,16 @@ export function useQRScanner() {
     const context = canvas.getContext('2d');
 
     if (video.readyState === video.HAVE_ENOUGH_DATA) {
+      console.log('🎥 视频准备就绪，开始扫描条形码');
+      
       // 根据设备性能调整画布尺寸
       const isAndroidDevice = isAndroid();
       const isLowEnd = isLowEndDevice();
       
       let canvasWidth = video.videoWidth;
       let canvasHeight = video.videoHeight;
+      
+      console.log('📐 原始视频尺寸:', { width: canvasWidth, height: canvasHeight });
       
       // 安卓设备性能优化：降低处理分辨率
       if (isAndroidDevice) {
@@ -430,6 +434,8 @@ export function useQRScanner() {
         }
       }
       
+      console.log('📐 处理后画布尺寸:', { width: canvasWidth, height: canvasHeight });
+      
       canvas.width = canvasWidth;
       canvas.height = canvasHeight;
       
@@ -438,38 +444,72 @@ export function useQRScanner() {
       
       // 获取图像数据
       const imageData = context.getImageData(0, 0, canvasWidth, canvasHeight);
+      console.log('🖼️ 图像数据获取完成:', { 
+        width: imageData.width, 
+        height: imageData.height, 
+        dataLength: imageData.data.length 
+      });
       
       // 使用 ZXing 识别条形码
-      try {
-        const codeReader = new BrowserMultiFormatReader();
-        
-        // 从画布创建 ImageData 进行条形码识别
-        const result = codeReader.decodeFromImageData(imageData);
-        
-        if (result) {
-          const scanResult = {
-            data: result.getText(),
-            timestamp: Date.now(),
-            type: result.getBarcodeFormat().toString()
-          };
+        try {
+          console.log('🔍 开始ZXing条形码识别...');
           
-          setScanResult(scanResult);
+          // 创建 BrowserMultiFormatReader 实例
+          const codeReader = new BrowserMultiFormatReader();
           
-          // 显示扫描成功的 toast
-          toast.success('条形码扫描成功！', {
-            description: `格式: ${result.getBarcodeFormat()} | 内容: ${result.getText().length > 30 ? result.getText().substring(0, 30) + '...' : result.getText()}`,
-            duration: 3000,
-          });
+          // 尝试从Canvas识别条形码
+          let result = null;
           
-          stopScanning();
-          return;
+          try {
+            // 方式1: 从Canvas元素识别
+            result = codeReader.decodeFromCanvas(canvas);
+            console.log('✅ 从Canvas识别成功');
+          } catch (e1) {
+            console.log('❌ Canvas识别失败:', e1.message);
+            
+            try {
+              // 方式2: 从ImageData识别
+              result = codeReader.decodeFromImageData(imageData);
+              console.log('✅ 从ImageData识别成功');
+            } catch (e2) {
+              console.log('❌ ImageData识别失败:', e2.message);
+            }
+          }
+          
+          if (result) {
+            console.log('🎉 条形码识别成功!', {
+              text: result.getText(),
+              format: result.getBarcodeFormat().toString(),
+              resultPoints: result.getResultPoints()
+            });
+            
+            const scanResult = {
+              data: result.getText(),
+              timestamp: Date.now(),
+              type: result.getBarcodeFormat().toString()
+            };
+            
+            setScanResult(scanResult);
+            
+            // 显示扫描成功的 toast
+            toast.success('条形码扫描成功！', {
+              description: `格式: ${result.getBarcodeFormat()} | 内容: ${result.getText().length > 30 ? result.getText().substring(0, 30) + '...' : result.getText()}`,
+              duration: 3000,
+            });
+            
+            stopScanning();
+            return;
+          } else {
+            console.log('🔍 未识别到条形码');
+          }
+        } catch (err) {
+          // ZXing 识别失败是正常的，不需要处理
+          if (!(err instanceof NotFoundException)) {
+            console.warn('⚠️ 条形码识别错误:', err);
+          }
         }
-      } catch (err) {
-        // ZXing 识别失败是正常的，不需要处理
-        if (!(err instanceof NotFoundException)) {
-          console.warn('条形码识别错误:', err);
-        }
-      }
+    } else {
+      console.log('⏳ 视频未准备就绪，readyState:', video.readyState);
     }
 
     // 根据设备性能调整扫描频率
