@@ -118,10 +118,22 @@ export default function QRScanner() {
           {/* 加载提示 */}
           {isLoading && (
             <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-              <div className="text-white text-center">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white mx-auto mb-2"></div>
-                <p>正在启动摄像头...</p>
+              <div className="text-white text-center p-4">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white mx-auto mb-3"></div>
+                <p className="mb-2">正在启动摄像头...</p>
+                {isIOS() && (
+                  <p className="text-sm text-yellow-300">
+                    iOS设备可能需要手动点击启动
+                  </p>
+                )}
               </div>
+            </div>
+          )}
+          
+          {/* iOS 特殊提示覆盖层 */}
+          {isScanning && !isLoading && isIOS() && (
+            <div className="absolute top-2 left-2 right-2 bg-black bg-opacity-70 text-white text-xs p-2 rounded">
+              💡 如果摄像头未显示画面，请点击视频区域
             </div>
           )}
         </div>
@@ -149,13 +161,33 @@ export default function QRScanner() {
         
         {/* 开始扫描按钮 */}
         {!isScanning && !scanResult && (
-          <button
-            onClick={startScanning}
-            disabled={isLoading}
-            className="px-8 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isLoading ? '启动中...' : '开始扫描'}
-          </button>
+          <div className="space-y-3">
+            <button
+              onClick={startScanning}
+              disabled={isLoading}
+              className="px-8 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isLoading ? '启动中...' : '开始扫描'}
+            </button>
+            
+            {/* 重试按钮 - 仅在加载状态下显示 */}
+            {isLoading && (
+              <div className="text-center">
+                <p className="text-sm text-gray-600 mb-2">
+                  启动时间较长？
+                </p>
+                <button
+                  onClick={() => {
+                    stopScanning();
+                    setTimeout(startScanning, 500);
+                  }}
+                  className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 transition-colors text-sm"
+                >
+                  重新尝试
+                </button>
+              </div>
+            )}
+          </div>
         )}
       </div>
 

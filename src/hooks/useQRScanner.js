@@ -124,28 +124,66 @@ export function useQRScanner() {
           videoRef.current.setAttribute('x5-video-player-fullscreen', false);
         }
 
+        // 设置超时保护，防止无限加载
+        const loadingTimeout = setTimeout(() => {
+          if (isLoading) {
+            console.warn('摄像头加载超时');
+            setIsLoading(false);
+            if (isIOSDevice) {
+              toast.info('加载超时', {
+                description: '请点击视频区域手动启动摄像头',
+                duration: 5000,
+              });
+            } else {
+              toast.error('摄像头启动超时', {
+                description: '请重试或检查设备权限',
+                duration: 4000,
+              });
+            }
+          }
+        }, 10000); // 10秒超时
+
         // 设置视频事件监听
         const handleVideoReady = () => {
+          clearTimeout(loadingTimeout);
           setIsLoading(false);
           setIsScanning(true);
           scanQRCode();
         };
 
         const handleVideoError = (error) => {
+          clearTimeout(loadingTimeout);
           console.error('视频播放错误:', error);
+          setIsLoading(false);
           toast.error('视频播放失败', {
             description: isIOSDevice ? '请点击视频区域手动启动' : '请检查摄像头设置',
             duration: 4000,
           });
         };
 
+        // 视频可以播放时的处理
+        const handleCanPlay = () => {
+          clearTimeout(loadingTimeout);
+          setIsLoading(false);
+          setIsScanning(true);
+          if (!animationRef.current) {
+            scanQRCode();
+          }
+        };
+
         // 添加事件监听器
         videoRef.current.onloadedmetadata = handleVideoReady;
+        videoRef.current.oncanplay = handleCanPlay;
         videoRef.current.onerror = handleVideoError;
 
         try {
           // 尝试自动播放
           await videoRef.current.play();
+          
+          // 播放成功后立即更新状态
+          clearTimeout(loadingTimeout);
+          setIsLoading(false);
+          setIsScanning(true);
           
           // 如果是iOS设备，给用户一个提示
           if (isIOSDevice && isSafariBrowser) {
@@ -154,11 +192,19 @@ export function useQRScanner() {
               duration: 3000,
             });
           }
+          
+          // 开始扫描
+          if (!animationRef.current) {
+            scanQRCode();
+          }
         } catch (playError) {
           console.warn('自动播放失败:', playError);
           
           // iOS Safari 经常需要用户交互才能播放
           if (isIOSDevice) {
+            clearTimeout(loadingTimeout);
+            setIsLoading(false);
+            
             toast.info('需要手动启动', {
               description: '请点击视频区域启动摄像头',
               duration: 5000,
@@ -168,11 +214,17 @@ export function useQRScanner() {
             const handleVideoClick = async () => {
               try {
                 await videoRef.current.play();
+                setIsScanning(true);
                 toast.success('摄像头已启动', {
                   description: '开始扫描二维码',
                   duration: 2000,
                 });
                 videoRef.current.removeEventListener('click', handleVideoClick);
+                
+                // 开始扫描
+                if (!animationRef.current) {
+                  scanQRCode();
+                }
               } catch (clickPlayError) {
                 console.error('点击播放失败:', clickPlayError);
                 toast.error('播放失败', {
@@ -186,6 +238,8 @@ export function useQRScanner() {
               videoRef.current.addEventListener('click', handleVideoClick);
             }
           } else {
+            clearTimeout(loadingTimeout);
+            setIsLoading(false);
             throw playError;
           }
         }
