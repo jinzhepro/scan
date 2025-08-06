@@ -1,101 +1,609 @@
-import Image from "next/image";
+"use client";
+
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { BrowserMultiFormatReader, NotFoundException } from "@zxing/library";
 
-export default function Home() {
+/**
+ * 条形码/二维码扫描页面组件
+ * 使用ZXing库实现高精度摄像头扫描功能
+ */
+export default function ScannerPage() {
+  // 状态管理
+  const [isScanning, setIsScanning] = useState(false);
+  const [result, setResult] = useState("");
+  const [scanCount, setScanCount] = useState(0);
+  const [lastScanTime, setLastScanTime] = useState(0);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editableResult, setEditableResult] = useState("");
+  const [productInfo, setProductInfo] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [scanHistory, setScanHistory] = useState([]);
+
+  // DOM引用
+  const videoRef = useRef(null);
+  const codeReaderRef = useRef(null);
+  const scanFrameRef = useRef(null);
+
+  /**
+   * 组件初始化
+   * 创建高精度代码读取器并配置优化参数
+   */
+  useEffect(() => {
+    console.log("🚀 Initializing high-precision scanner component...");
+
+    // 创建ZXing代码读取器实例，配置优化参数
+    const hints = new Map();
+    // 启用所有支持的格式以提高识别率
+    hints.set("POSSIBLE_FORMATS", [
+      "QR_CODE",
+      "DATA_MATRIX",
+      "UPC_E",
+      "UPC_A",
+      "EAN_8",
+      "EAN_13",
+      "CODE_128",
+      "CODE_39",
+      "CODE_93",
+      "CODABAR",
+      "ITF",
+      "RSS_14",
+      "RSS_EXPANDED",
+      "PDF_417",
+      "AZTEC",
+      "MAXICODE",
+    ]);
+    // 尝试更难的模式以提高精确度
+    hints.set("TRY_HARDER", true);
+    // 纯条形码模式，减少误识别
+    hints.set("PURE_BARCODE", false);
+
+    codeReaderRef.current = new BrowserMultiFormatReader(hints);
+    console.log(
+      "📖 High-precision ZXing code reader created with optimized hints"
+    );
+
+    // 组件卸载时清理资源
+    return () => {
+      if (codeReaderRef.current) {
+        codeReaderRef.current.reset();
+      }
+    };
+  }, []);
+
+  /**
+   * 开始高精度扫描功能
+   * 使用优化的摄像头配置开始连续扫描
+   */
+  const handleStartScan = async () => {
+    console.log("🎯 Starting high-precision scan process...");
+
+    if (!videoRef.current) {
+      console.error("❌ Cannot start scan: missing video element");
+      return;
+    }
+
+    console.log("🎥 Video element:", videoRef.current);
+
+    setIsScanning(true);
+    setResult("");
+    setScanCount(0);
+    setLastScanTime(Date.now());
+
+    try {
+      // 配置高分辨率视频约束以提高扫描精确度
+      const constraints = {
+        video: {
+          facingMode: "environment", // 优先使用后置摄像头
+          width: { ideal: 1920, min: 640 },
+          height: { ideal: 1080, min: 480 },
+          frameRate: { ideal: 30, min: 15 },
+          focusMode: "continuous",
+          exposureMode: "continuous",
+          whiteBalanceMode: "continuous",
+        },
+      };
+
+      console.log(
+        "📷 Requesting high-resolution camera with constraints:",
+        constraints
+      );
+
+      // 开始扫描，使用优化的回调函数
+      await codeReaderRef.current.decodeFromConstraints(
+        constraints,
+        videoRef.current,
+        (result, err) => {
+          const currentTime = Date.now();
+          setScanCount((prev) => prev + 1);
+
+          if (result) {
+            const scanDuration = currentTime - lastScanTime;
+            console.log("🎉 Scan result found:", result);
+            console.log("📝 Result text:", result.text);
+            console.log("⏱️ Scan duration:", scanDuration + "ms");
+            console.log("🔢 Total scan attempts:", scanCount + 1);
+
+            setResult(result.text);
+            setEditableResult(result.text);
+            setIsEditing(false); // 新扫描结果时退出编辑模式
+
+            // 自动查询商品信息
+            queryProductInfo(result.text);
+
+            // 扫描成功后自动停止扫描
+            handleStopScan();
+          }
+
+          if (err && !(err instanceof NotFoundException)) {
+            console.error("❌ Scan error:", err);
+            // 只在严重错误时显示错误信息
+            if (err.name !== "NotFoundError") {
+              setResult(`扫描错误: ${err.message}`);
+            }
+          }
+        }
+      );
+
+      console.log(
+        "✅ Started high-precision continuous decode with optimized constraints"
+      );
+    } catch (error) {
+      console.error("❌ Failed to start scanning:", error);
+      setResult(`启动扫描失败: ${error.message}`);
+      setIsScanning(false);
+    }
+  };
+
+  /**
+   * 查询商品信息
+   * 根据扫描到的条形码查询数据库中的商品信息
+   */
+  const queryProductInfo = async (barcode) => {
+    if (!barcode) return;
+
+    setIsLoading(true);
+    try {
+      console.log("🔍 Querying product info for barcode:", barcode);
+
+      const response = await fetch(
+        `/api/products/barcode/${encodeURIComponent(barcode)}`
+      );
+      const data = await response.json();
+
+      if (data.success) {
+        if (data.found) {
+          console.log("✅ Product found:", data.data);
+          setProductInfo(data.data);
+        } else {
+          console.log("ℹ️ Product not found, scan recorded");
+          setProductInfo(null);
+        }
+
+        // 更新扫描历史
+        setScanHistory((prev) => [
+          {
+            barcode,
+            product: data.found ? data.data : null,
+            timestamp: new Date().toLocaleString(),
+            found: data.found,
+          },
+          ...prev.slice(0, 9),
+        ]); // 保留最近10条记录
+      }
+    } catch (error) {
+      console.error("❌ Failed to query product:", error);
+      setProductInfo(null);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  /**
+   * 处理商品出库
+   * 将商品库存减1
+   */
+  const handleOutbound = async () => {
+    if (!productInfo) {
+      alert("没有商品信息");
+      return;
+    }
+
+    if (productInfo.stock <= 0) {
+      alert("库存不足，无法出库");
+      return;
+    }
+
+    // 确认出库操作
+    if (
+      !confirm(
+        `确认要出库商品"${productInfo.name}"吗？\n当前库存：${productInfo.stock}`
+      )
+    ) {
+      return;
+    }
+
+    try {
+      console.log("📦 Processing outbound for product:", productInfo.id);
+
+      const response = await fetch(`/api/products/${productInfo.id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          stock: productInfo.stock - 1,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        console.log("✅ Outbound successful:", data);
+        // 更新本地商品信息
+        setProductInfo((prev) => ({
+          ...prev,
+          stock: prev.stock - 1,
+        }));
+        alert("出库成功！库存已更新");
+      } else {
+        console.error("❌ Outbound failed:", data);
+        alert("出库失败：" + (data.error || data.message || "未知错误"));
+      }
+    } catch (error) {
+      console.error("❌ Outbound error:", error);
+      alert("出库失败：网络错误");
+    }
+  };
+
+  /**
+   * 开始编辑扫描结果
+   */
+  const handleStartEdit = () => {
+    setIsEditing(true);
+    setEditableResult(result);
+  };
+
+  /**
+   * 保存编辑的结果
+   */
+  const handleSaveEdit = () => {
+    setResult(editableResult);
+    setIsEditing(false);
+    console.log("✅ Result edited and saved:", editableResult);
+  };
+
+  /**
+   * 取消编辑
+   */
+  const handleCancelEdit = () => {
+    setIsEditing(false);
+    setEditableResult(result);
+  };
+
+  /**
+   * 处理编辑内容变化
+   */
+  const handleEditChange = (e) => {
+    setEditableResult(e.target.value);
+  };
+
+  /**
+   * 停止扫描
+   * 只停止扫描，不清除已有的结果和商品信息
+   */
+  const handleStopScan = () => {
+    console.log("⏹️ Stopping scanner...");
+
+    if (codeReaderRef.current) {
+      codeReaderRef.current.reset();
+      console.log("✅ Scanner stopped");
+    }
+    setIsScanning(false);
+  };
+
+  /**
+   * 重置扫描器
+   * 停止扫描并清除所有状态
+   */
+  const handleReset = () => {
+    console.log("🔄 Resetting scanner...");
+
+    if (codeReaderRef.current) {
+      codeReaderRef.current.reset();
+      console.log("✅ Scanner reset completed");
+    }
+    setIsScanning(false);
+    setResult("");
+    setScanCount(0);
+    setLastScanTime(0);
+    setIsEditing(false);
+    setEditableResult("");
+    setProductInfo(null);
+    setIsLoading(false);
+    console.log("🧹 All states cleared");
+  };
+
   return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              src/app/page.js
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
-
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <Link
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-blue-600 text-white gap-2 hover:bg-blue-700 font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="/scanner"
-          >
-            📱 开始扫描
-          </Link>
-          {/* <Link
-            className="rounded-full border border-solid border-green-600 text-green-600 transition-colors flex items-center justify-center hover:bg-green-50 font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="/init-db"
-          >
-            🗄️ 初始化数据库
-          </Link> */}
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+    <div className="min-h-screen bg-gray-50 py-2">
+      <div className="max-w-4xl mx-auto px-2">
+        {/* 页面标题 */}
+        <div className="text-center mb-4">
+          <h6 className="text-xl font-bold text-gray-900 mb-4">
+            高精度条形码/二维码扫描器
+          </h6>
+          <p className="text-gray-600 max-w-2xl mx-auto">
+            使用优化的ZXing JavaScript库从高分辨率摄像头扫描任何支持的1D/2D码。
+          </p>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+        {/* 视频预览区域 */}
+        <div className="flex justify-center mb-6">
+          <div className="bg-white rounded-lg shadow-lg p-4 relative w-full max-w-lg">
+            <video
+              ref={videoRef}
+              className="border border-gray-300 rounded w-full"
+              style={{
+                objectFit: "cover",
+                aspectRatio: "4/3",
+                maxWidth: "100%",
+                height: "auto",
+              }}
+            />
+
+            {/* 扫描统计信息 */}
+            {isScanning && (
+              <div className="absolute top-2 right-2 bg-black bg-opacity-70 text-white px-2 py-1 rounded text-xs">
+                扫描次数: {scanCount}
+              </div>
+            )}
+          </div>
+        </div>
+        {/* 控制按钮 */}
+        <div className="flex justify-center gap-4 mb-6">
+          <button
+            onClick={handleStartScan}
+            disabled={isScanning}
+            className="bg-blue-500 hover:bg-blue-600 disabled:bg-gray-400 text-white font-medium py-2 px-6 rounded-lg transition-colors"
+          >
+            {isScanning ? "扫描中..." : "开始扫描"}
+          </button>
+          {isScanning && (
+            <button
+              onClick={handleStopScan}
+              className="bg-orange-500 hover:bg-orange-600 text-white font-medium py-2 px-6 rounded-lg transition-colors"
+            >
+              停止扫描
+            </button>
+          )}
+          <button
+            onClick={handleReset}
+            className="bg-gray-500 hover:bg-gray-600 text-white font-medium py-2 px-6 rounded-lg transition-colors"
+          >
+            重置
+          </button>
+        </div>
+
+        {/* 扫描结果显示 */}
+        <div className="max-w-2xl mx-auto">
+          <div className="flex justify-between items-center mb-2">
+            <label className="block text-sm font-medium text-gray-700">
+              扫描结果:
+            </label>
+            {result && !isEditing && (
+              <button
+                onClick={handleStartEdit}
+                className="text-blue-600 hover:text-blue-800 text-sm font-medium flex items-center gap-1"
+              >
+                ✏️ 编辑
+              </button>
+            )}
+          </div>
+
+          {isEditing ? (
+            // 编辑模式
+            <div className="space-y-3">
+              <textarea
+                value={editableResult}
+                onChange={handleEditChange}
+                className="w-full bg-white border border-gray-300 rounded-lg p-4 min-h-[100px] text-sm text-gray-900 font-mono resize-vertical focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                placeholder="编辑扫描结果..."
+                autoFocus
+              />
+              <div className="flex justify-end gap-2">
+                <button
+                  onClick={handleCancelEdit}
+                  className="bg-gray-500 hover:bg-gray-600 text-white font-medium py-1 px-3 rounded text-sm transition-colors"
+                >
+                  取消
+                </button>
+                <button
+                  onClick={handleSaveEdit}
+                  className="bg-green-500 hover:bg-green-600 text-white font-medium py-1 px-3 rounded text-sm transition-colors"
+                >
+                  保存
+                </button>
+              </div>
+            </div>
+          ) : (
+            // 显示模式
+            <div className="bg-white border border-gray-300 rounded-lg p-4 min-h-[100px] relative group">
+              <pre className="whitespace-pre-wrap text-sm text-gray-900 font-mono">
+                {result || "等待扫描结果..."}
+              </pre>
+              {result && (
+                <button
+                  onClick={handleStartEdit}
+                  className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-blue-500 hover:bg-blue-600 text-white text-xs px-2 py-1 rounded"
+                >
+                  编辑
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* 商品信息显示 */}
+        {result && (
+          <div className="max-w-2xl mx-auto mt-6">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              商品信息:
+            </label>
+
+            {isLoading ? (
+              <div className="bg-white border border-gray-300 rounded-lg p-4 text-center">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500 mx-auto mb-2"></div>
+                <p className="text-gray-600 text-sm">正在查询商品信息...</p>
+              </div>
+            ) : productInfo ? (
+              <div className="bg-white border border-green-300 rounded-lg p-4 border-l-4 border-l-green-500">
+                <div className="flex items-start justify-between mb-3">
+                  <h3 className="text-lg font-semibold text-gray-900">
+                    {productInfo.name}
+                  </h3>
+                  <span className="bg-green-100 text-green-800 text-xs font-medium px-2 py-1 rounded">
+                    已找到
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4 text-sm mb-4">
+                  <div>
+                    <span className="text-gray-600">条形码:</span>
+                    <p className="font-mono text-gray-900">
+                      {productInfo.barcode}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-gray-600">价格:</span>
+                    <p className="font-semibold text-green-600">
+                      ¥{productInfo.price}
+                    </p>
+                  </div>
+                  {productInfo.stock !== null && (
+                    <div>
+                      <span className="text-gray-600">库存:</span>
+                      <p
+                        className={`font-semibold ${
+                          productInfo.stock > 0
+                            ? "text-gray-900"
+                            : "text-red-600"
+                        }`}
+                      >
+                        {productInfo.stock}
+                      </p>
+                    </div>
+                  )}
+                  {productInfo.expiry_date && (
+                    <div>
+                      <span className="text-gray-600">有效期:</span>
+                      <p className="text-gray-900">{productInfo.expiry_date}</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* 出库按钮 */}
+                <div className="flex justify-end">
+                  <button
+                    onClick={handleOutbound}
+                    disabled={!productInfo.stock || productInfo.stock <= 0}
+                    className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors ${
+                      productInfo.stock > 0
+                        ? "bg-red-500 hover:bg-red-600 text-white"
+                        : "bg-gray-300 text-gray-500 cursor-not-allowed"
+                    }`}
+                  >
+                    📦 出库 (-1)
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="bg-white border border-yellow-300 rounded-lg p-4 border-l-4 border-l-yellow-500">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-lg font-semibold text-gray-900">
+                    未找到商品信息
+                  </h3>
+                  <span className="bg-yellow-100 text-yellow-800 text-xs font-medium px-2 py-1 rounded">
+                    未知商品
+                  </span>
+                </div>
+                <p className="text-gray-600 text-sm mb-3">
+                  数据库中没有找到该条形码对应的商品信息，但扫描记录已保存。
+                </p>
+                <div className="text-sm">
+                  <span className="text-gray-600">条形码:</span>
+                  <p className="font-mono text-gray-900">{result}</p>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* 扫描历史 */}
+        {scanHistory.length > 0 && (
+          <div className="max-w-2xl mx-auto mt-6">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              扫描历史 (最近10条):
+            </label>
+            <div className="bg-white border border-gray-300 rounded-lg divide-y divide-gray-200">
+              {scanHistory.map((scan, index) => (
+                <div key={index} className="p-3 hover:bg-gray-50">
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-sm text-gray-900">
+                          {scan.barcode}
+                        </span>
+                        <span
+                          className={`text-xs px-2 py-1 rounded ${
+                            scan.found
+                              ? "bg-green-100 text-green-800"
+                              : "bg-yellow-100 text-yellow-800"
+                          }`}
+                        >
+                          {scan.found ? "已识别" : "未知"}
+                        </span>
+                      </div>
+                      {scan.product && (
+                        <p className="text-sm text-gray-600 mt-1">
+                          {scan.product.name}
+                        </p>
+                      )}
+                    </div>
+                    <span className="text-xs text-gray-500">
+                      {scan.timestamp}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* 返回首页链接 */}
+        <div className="text-center mt-8">
+          <Link
+            href="/"
+            className="inline-flex items-center text-blue-600 hover:text-blue-800 font-medium"
+          >
+            ← 返回首页
+          </Link>
+        </div>
+
+        {/* 页脚信息 */}
+        <footer className="text-center mt-12 pt-8 border-t border-gray-200">
+          <p className="text-gray-500 text-sm">
+            基于{" "}
+            <a
+              href="https://github.com/zxing-js/library"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-600 hover:text-blue-800"
+            >
+              ZXing JavaScript库
+            </a>{" "}
+            构建
+          </p>
+        </footer>
+      </div>
     </div>
   );
 }
