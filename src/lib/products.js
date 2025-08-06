@@ -26,13 +26,16 @@ export async function findProductByBarcode(barcode) {
  */
 export async function createProduct(productData) {
   try {
-    const { name, barcode, price, stock = 0, expiry_date } = productData;
+    const { name, barcode, price, stock = 0, available_stock, expiry_date } = productData;
+    
+    // 如果没有指定可用库存，默认等于总库存
+    const availableStockValue = available_stock !== undefined ? available_stock : stock;
 
     const result = await sql`
       INSERT INTO products (
-        name, barcode, price, stock, expiry_date
+        name, barcode, price, stock, available_stock, expiry_date
       ) VALUES (
-        ${name}, ${barcode}, ${price}, ${stock}, ${expiry_date || null}
+        ${name}, ${barcode}, ${price}, ${stock}, ${availableStockValue}, ${expiry_date || null}
       )
       RETURNING *
     `;
@@ -53,7 +56,7 @@ export async function createProduct(productData) {
  */
 export async function updateProduct(id, updateData) {
   try {
-    const { name, price, stock, expiry_date } = updateData;
+    const { name, price, stock, available_stock, expiry_date } = updateData;
 
     // 验证商品ID
     if (!id || isNaN(id)) {
@@ -63,6 +66,11 @@ export async function updateProduct(id, updateData) {
     // 验证库存不能为负数
     if (stock !== undefined && stock < 0) {
       throw new Error("库存不能为负数");
+    }
+    
+    // 验证可用库存不能为负数
+    if (available_stock !== undefined && available_stock < 0) {
+      throw new Error("可用库存不能为负数");
     }
 
     // 构建动态更新字段，只包含非undefined的值
@@ -80,6 +88,10 @@ export async function updateProduct(id, updateData) {
     if (stock !== undefined) {
       updateFields.push('stock = $' + (updateValues.length + 2));
       updateValues.push(stock);
+    }
+    if (available_stock !== undefined) {
+      updateFields.push('available_stock = $' + (updateValues.length + 2));
+      updateValues.push(available_stock);
     }
     if (expiry_date !== undefined) {
       updateFields.push('expiry_date = $' + (updateValues.length + 2));
@@ -230,11 +242,13 @@ export async function getExpiredProducts() {
  * @param {string} adjustmentData.type - 调整类型：'add'增加、'subtract'减少、'set'设置
  * @param {number} adjustmentData.quantity - 调整数量
  * @param {string} adjustmentData.reason - 调整原因
+ * @param {boolean} adjustmentData.adjustAvailableStock - 是否同时调整可用库存，默认true
+ * @param {boolean} adjustmentData.onlyAvailableStock - 是否仅调整可用库存，默认false
  * @returns {Object} 调整结果
  */
 export async function adjustProductStock(id, adjustmentData) {
   try {
-    const { type, quantity, reason } = adjustmentData;
+    const { type, quantity, reason, adjustAvailableStock = true, onlyAvailableStock = false } = adjustmentData;
 
     // 验证参数
     if (!id || isNaN(id)) {
@@ -263,42 +277,108 @@ export async function adjustProductStock(id, adjustmentData) {
 
     const product = currentProduct[0];
     const oldStock = product.stock;
+    const oldAvailableStock = product.available_stock || 0;
     let newStock;
+    let newAvailableStock;
 
     // 根据调整类型计算新库存
-    switch (type) {
-      case 'add':
-        newStock = oldStock + quantity;
-        break;
-      case 'subtract':
-        newStock = oldStock - quantity;
-        if (newStock < 0) {
+    if (onlyAvailableStock) {
+      // 仅调整可用库存
+      newStock = oldStock; // 总库存保持不变
+      
+      switch (type) {
+        case 'add':
+          newAvailableStock = oldAvailableStock + quantity;
+          break;
+        case 'subtract':
+          newAvailableStock = oldAvailableStock - quantity;
+          
+          if (newAvailableStock < 0) {
+            return {
+              success: false,
+              error: `减少数量(${quantity})超过当前可用库存(${oldAvailableStock})`
+            };
+          }
+          break;
+        case 'set':
+          newAvailableStock = quantity;
+          
+          if (newAvailableStock < 0) {
+            return {
+              success: false,
+              error: "可用库存不能设置为负数"
+            };
+          }
+          break;
+        default:
           return {
             success: false,
-            error: `减少数量(${quantity})超过当前库存(${oldStock})`
+            error: "无效的调整类型"
           };
-        }
-        break;
-      case 'set':
-        newStock = quantity;
-        if (newStock < 0) {
-          return {
-            success: false,
-            error: "库存不能设置为负数"
-          };
-        }
-        break;
-      default:
+      }
+      
+      // 确保可用库存不超过总库存
+      if (newAvailableStock > newStock) {
         return {
           success: false,
-          error: "无效的调整类型"
+          error: `可用库存(${newAvailableStock})不能超过总库存(${newStock})`
         };
+      }
+    } else {
+      // 调整总库存（可选择是否同时调整可用库存）
+      switch (type) {
+        case 'add':
+          newStock = oldStock + quantity;
+          newAvailableStock = adjustAvailableStock ? oldAvailableStock + quantity : oldAvailableStock;
+          break;
+        case 'subtract':
+          newStock = oldStock - quantity;
+          newAvailableStock = adjustAvailableStock ? oldAvailableStock - quantity : oldAvailableStock;
+          
+          if (newStock < 0) {
+            return {
+              success: false,
+              error: `减少数量(${quantity})超过当前库存(${oldStock})`
+            };
+          }
+          
+          if (adjustAvailableStock && newAvailableStock < 0) {
+            return {
+              success: false,
+              error: `减少数量(${quantity})超过当前可用库存(${oldAvailableStock})`
+            };
+          }
+          break;
+        case 'set':
+          newStock = quantity;
+          newAvailableStock = adjustAvailableStock ? Math.min(quantity, oldAvailableStock) : oldAvailableStock;
+          
+          if (newStock < 0) {
+            return {
+              success: false,
+              error: "库存不能设置为负数"
+            };
+          }
+          break;
+        default:
+          return {
+            success: false,
+            error: "无效的调整类型"
+          };
+      }
+      
+      // 确保可用库存不超过总库存
+      if (newAvailableStock > newStock) {
+        newAvailableStock = newStock;
+      }
     }
 
     // 更新库存
     const result = await sql`
       UPDATE products 
-      SET stock = ${newStock}, updated_at = CURRENT_TIMESTAMP
+      SET stock = ${newStock}, 
+          available_stock = ${newAvailableStock},
+          updated_at = CURRENT_TIMESTAMP
       WHERE id = ${id}
       RETURNING *
     `;
@@ -310,17 +390,20 @@ export async function adjustProductStock(id, adjustmentData) {
       };
     }
 
-    console.log(`✅ 库存调整成功: ${product.name} (${product.barcode}) ${oldStock} → ${newStock} (${type}: ${quantity})`);
+    console.log(`✅ 库存调整成功: ${product.name} (${product.barcode}) 总库存: ${oldStock} → ${newStock}, 可用库存: ${oldAvailableStock} → ${newAvailableStock} (${type}: ${quantity})`);
 
     return {
       success: true,
       product: result[0],
       oldStock,
       newStock,
+      oldAvailableStock,
+      newAvailableStock,
       adjustment: {
         type,
         quantity,
-        reason
+        reason,
+        adjustAvailableStock
       }
     };
   } catch (error) {

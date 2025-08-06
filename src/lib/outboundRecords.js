@@ -5,17 +5,21 @@ import sql from "./db.js";
  * @param {string} barcode - 扫描的条形码
  * @param {number|null} productId - 商品ID（如果找到对应商品）
  * @param {number} quantity - 出库数量，默认为1
+ * @param {number|null} remainingStock - 出库后剩余总库存
+ * @param {number|null} remainingAvailableStock - 出库后剩余可用库存
  * @returns {Object} 创建的出库记录
  */
 export async function createOutboundRecord(
   barcode,
   productId = null,
-  quantity = 1
+  quantity = 1,
+  remainingStock = null,
+  remainingAvailableStock = null
 ) {
   try {
     const result = await sql`
-      INSERT INTO outbound_records (barcode, product_id, quantity)
-      VALUES (${barcode}, ${productId}, ${quantity})
+      INSERT INTO outbound_records (barcode, product_id, quantity, remaining_stock, remaining_available_stock)
+      VALUES (${barcode}, ${productId}, ${quantity}, ${remainingStock}, ${remainingAvailableStock})
       RETURNING *
     `;
 
@@ -31,13 +35,19 @@ export async function createOutboundRecord(
  * 获取出库记录列表
  * @param {number} limit - 限制数量
  * @param {number} offset - 偏移量
- * @returns {Array} 出库记录列表（包含商品信息）
+ * @returns {Array} 出库记录列表（包含商品信息和出库后库存）
  */
 export async function getOutboundRecords(limit = 50, offset = 0) {
   try {
     const result = await sql`
       SELECT 
-        outbound_rec.*,
+        outbound_rec.id,
+        outbound_rec.barcode,
+        outbound_rec.product_id,
+        outbound_rec.quantity,
+        outbound_rec.remaining_stock,
+        outbound_rec.remaining_available_stock,
+        outbound_rec.outbound_at,
         p.name as product_name,
         p.price as product_price,
         p.stock as product_stock
@@ -96,13 +106,19 @@ export async function getOutboundStatistics() {
 /**
  * 根据条形码获取出库历史
  * @param {string} barcode - 条形码
- * @returns {Array} 该条形码的出库历史
+ * @returns {Array} 该条形码的出库历史（包含出库后库存信息）
  */
 export async function getOutboundHistoryByBarcode(barcode) {
   try {
     const result = await sql`
       SELECT 
-        outbound_rec.*,
+        outbound_rec.id,
+        outbound_rec.barcode,
+        outbound_rec.product_id,
+        outbound_rec.quantity,
+        outbound_rec.remaining_stock,
+        outbound_rec.remaining_available_stock,
+        outbound_rec.outbound_at,
         p.name as product_name,
         p.price as product_price,
         p.stock as product_stock

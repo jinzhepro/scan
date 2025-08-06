@@ -69,7 +69,13 @@ export async function GET(request) {
  */
 export async function POST(request) {
   try {
-    const { barcode, productId, quantity = 1 } = await request.json();
+    const { 
+      barcode, 
+      productId, 
+      quantity = 1, 
+      remainingStock = null, 
+      remainingAvailableStock = null 
+    } = await request.json();
 
     if (!barcode) {
       return NextResponse.json(
@@ -82,7 +88,13 @@ export async function POST(request) {
     }
 
     // 创建出库记录
-    const record = await createOutboundRecord(barcode, productId, quantity);
+    const record = await createOutboundRecord(
+      barcode, 
+      productId, 
+      quantity, 
+      remainingStock, 
+      remainingAvailableStock
+    );
 
     return NextResponse.json({
       success: true,

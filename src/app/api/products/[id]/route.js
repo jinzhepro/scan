@@ -63,7 +63,7 @@ export async function PUT(request, { params }) {
     }
 
     const body = await request.json();
-    const { name, price, stock, expiry_date } = body;
+    const { name, price, stock, available_stock, expiry_date } = body;
 
     // 验证请求体
     if (!body || Object.keys(body).length === 0) {
@@ -82,6 +82,7 @@ export async function PUT(request, { params }) {
       name,
       price,
       stock,
+      available_stock,
       expiry_date,
     });
 

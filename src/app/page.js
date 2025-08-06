@@ -23,6 +23,17 @@ export default function ScannerPage() {
   const [outboundRecords, setOutboundRecords] = useState([]);
   const [isLoadingRecords, setIsLoadingRecords] = useState(false);
 
+  // 库存调整相关状态
+  const [showStockModal, setShowStockModal] = useState(false);
+  const [stockAdjustment, setStockAdjustment] = useState({
+    type: "add",
+    quantity: "",
+    reason: "",
+    adjustAvailableStock: true,
+    onlyAvailableStock: false,
+  });
+  const [isAdjustingStock, setIsAdjustingStock] = useState(false);
+
   // DOM引用
   const videoRef = useRef(null);
   const codeReaderRef = useRef(null);
@@ -295,8 +306,8 @@ export default function ScannerPage() {
       const product = productInfo;
       console.log("✅ Product found for outbound:", product);
 
-      if (product.stock <= 0) {
-        toast.warning("库存不足，无法出库");
+      if ((product.available_stock || 0) <= 0) {
+        toast.warning("可用库存不足，无法出库");
         setIsLoading(false);
         return;
       }
@@ -304,7 +315,9 @@ export default function ScannerPage() {
       // 确认出库操作
       if (
         !confirm(
-          `确认要出库商品"${product.name}"吗？\n当前库存：${product.stock}`
+          `确认要出库商品"${product.name}"吗？\n当前总库存：${
+            product.stock
+          }\n当前可用库存：${product.available_stock || 0}`
         )
       ) {
         setIsLoading(false);
@@ -321,6 +334,7 @@ export default function ScannerPage() {
         },
         body: JSON.stringify({
           stock: product.stock - 1,
+          available_stock: (product.available_stock || 0) - 1,
         }),
       });
 
@@ -333,6 +347,7 @@ export default function ScannerPage() {
         const updatedProduct = {
           ...product,
           stock: product.stock - 1,
+          available_stock: (product.available_stock || 0) - 1,
         };
         setProductInfo(updatedProduct);
 
@@ -347,6 +362,8 @@ export default function ScannerPage() {
               barcode: result,
               productId: product.id,
               quantity: 1,
+              remainingStock: updatedProduct.stock,
+              remainingAvailableStock: updatedProduct.available_stock,
             }),
           });
 
@@ -455,6 +472,99 @@ export default function ScannerPage() {
     setProductInfo(null);
     setIsLoading(false);
     console.log("🧹 All states cleared");
+  };
+
+  /**
+   * 显示库存调整模态框
+   */
+  const showStockAdjustment = () => {
+    if (!productInfo) {
+      toast.error("请先查询商品信息");
+      return;
+    }
+    setStockAdjustment({
+      type: "add",
+      quantity: "",
+      reason: "",
+      adjustAvailableStock: true,
+    });
+    setShowStockModal(true);
+  };
+
+  /**
+   * 关闭库存调整模态框
+   */
+  const closeStockModal = () => {
+    setShowStockModal(false);
+    setStockAdjustment({
+      type: "add",
+      quantity: "",
+      reason: "",
+      adjustAvailableStock: true,
+      onlyAvailableStock: false,
+    });
+  };
+
+  /**
+   * 处理库存调整
+   */
+  const handleStockAdjustment = async () => {
+    if (!productInfo || !stockAdjustment.quantity) {
+      toast.error("请输入调整数量");
+      return;
+    }
+
+    const quantity = parseInt(stockAdjustment.quantity);
+    if (isNaN(quantity) || quantity <= 0) {
+      toast.error("请输入有效的数量");
+      return;
+    }
+
+    // 如果是减少库存，检查是否会导致负库存
+    if (stockAdjustment.type === "subtract" && quantity > productInfo.stock) {
+      toast.error("减少数量不能超过当前库存");
+      return;
+    }
+
+    // 如果是设置库存，检查数量是否合理
+    if (stockAdjustment.type === "set" && quantity < 0) {
+      toast.error("库存数量不能为负数");
+      return;
+    }
+
+    setIsAdjustingStock(true);
+
+    try {
+      const response = await fetch(`/api/products/${productInfo.id}/stock`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          type: stockAdjustment.type,
+          quantity: parseInt(stockAdjustment.quantity),
+          reason: stockAdjustment.reason || "扫描页面调整",
+          adjustAvailableStock: stockAdjustment.adjustAvailableStock,
+          onlyAvailableStock: stockAdjustment.onlyAvailableStock,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        toast.success("库存调整成功");
+        // 刷新商品信息
+        await queryProductInfo();
+        closeStockModal();
+      } else {
+        toast.error("库存调整失败：" + (data.error || "未知错误"));
+      }
+    } catch (error) {
+      console.error("库存调整失败:", error);
+      toast.error("库存调整失败：网络错误");
+    } finally {
+      setIsAdjustingStock(false);
+    }
   };
 
   return (
@@ -625,7 +735,7 @@ export default function ScannerPage() {
                   </div>
                   {productInfo.stock !== null && (
                     <div>
-                      <span className="text-gray-600">库存:</span>
+                      <span className="text-gray-600">总库存:</span>
                       <p
                         className={`font-semibold ${
                           productInfo.stock > 0
@@ -637,6 +747,18 @@ export default function ScannerPage() {
                       </p>
                     </div>
                   )}
+                  <div>
+                    <span className="text-gray-600">可用库存:</span>
+                    <p
+                      className={`font-semibold ${
+                        (productInfo.available_stock || 0) > 0
+                          ? "text-green-600"
+                          : "text-red-600"
+                      }`}
+                    >
+                      {productInfo.available_stock || 0}
+                    </p>
+                  </div>
                   {productInfo.expiry_date && (
                     <div>
                       <span className="text-gray-600">有效期:</span>
@@ -654,10 +776,19 @@ export default function ScannerPage() {
                     🔍 重新查询
                   </button>
                   <button
+                    onClick={showStockAdjustment}
+                    className="px-4 py-2 rounded-lg font-medium text-sm transition-colors bg-green-500 hover:bg-green-600 text-white"
+                  >
+                    📊 调整库存
+                  </button>
+                  <button
                     onClick={handleOutbound}
-                    disabled={!productInfo.stock || productInfo.stock <= 0}
+                    disabled={
+                      !(productInfo.available_stock || 0) ||
+                      (productInfo.available_stock || 0) <= 0
+                    }
                     className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors ${
-                      productInfo.stock > 0
+                      (productInfo.available_stock || 0) > 0
                         ? "bg-red-500 hover:bg-red-600 text-white"
                         : "bg-gray-300 text-gray-500 cursor-not-allowed"
                     }`}
@@ -700,11 +831,11 @@ export default function ScannerPage() {
           </div>
         )}
 
-        {/* 当前商品出库记录 */}
-        {result && productInfo && (
+        {/* 出库历史 */}
+        {result && (
           <div className="max-w-2xl mx-auto mt-6">
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              当前商品出库记录:
+              出库历史:
             </label>
 
             {isLoadingRecords ? (
@@ -722,17 +853,40 @@ export default function ScannerPage() {
                           <span className="font-mono text-sm text-gray-900">
                             {record.barcode}
                           </span>
-                          <span className="text-xs px-2 py-1 rounded bg-red-100 text-red-800">
-                            出库
+                          <span className="text-xs px-2 py-1 rounded bg-green-100 text-green-800">
+                            已识别
                           </span>
                         </div>
                         <div className="text-sm text-gray-600">
                           <p className="font-medium">{record.product_name}</p>
                           <div className="flex items-center gap-4 mt-1">
+                            <span>价格: ¥{record.product_price}</span>
                             <span className="text-red-600 font-medium">
                               出库数量: {record.quantity || 1}
                             </span>
-                            <span>价格: ¥{record.product_price}</span>
+                            {record.remaining_stock !== null && (
+                              <span
+                                className={`font-medium ${
+                                  record.remaining_stock > 0
+                                    ? "text-gray-700"
+                                    : "text-red-600"
+                                }`}
+                              >
+                                出库后总库存: {record.remaining_stock}
+                              </span>
+                            )}
+                            {record.remaining_available_stock !== null && (
+                              <span
+                                className={`font-medium ${
+                                  (record.remaining_available_stock || 0) > 0
+                                    ? "text-green-600"
+                                    : "text-red-600"
+                                }`}
+                              >
+                                出库后可用库存:{" "}
+                                {record.remaining_available_stock || 0}
+                              </span>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -751,64 +905,6 @@ export default function ScannerPage() {
           </div>
         )}
 
-        {/* 出库历史 */}
-        {scanHistory.length > 0 && (
-          <div className="max-w-2xl mx-auto mt-6">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              出库历史 (最近10条):
-            </label>
-            <div className="bg-white border border-gray-300 rounded-lg divide-y divide-gray-200">
-              {scanHistory.map((scan, index) => (
-                <div key={index} className="p-3 hover:bg-gray-50">
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="font-mono text-sm text-gray-900">
-                          {scan.barcode}
-                        </span>
-                        <span
-                          className={`text-xs px-2 py-1 rounded ${
-                            scan.found
-                              ? "bg-green-100 text-green-800"
-                              : "bg-yellow-100 text-yellow-800"
-                          }`}
-                        >
-                          {scan.found ? "已识别" : "未知"}
-                        </span>
-                      </div>
-                      {scan.product && (
-                        <div className="text-sm text-gray-600">
-                          <p className="font-medium">{scan.product.name}</p>
-                          <div className="flex items-center gap-4 mt-1">
-                            <span>价格: ¥{scan.product.price}</span>
-                            <span className="text-red-600 font-medium">
-                              出库数量: {scan.quantity || 1}
-                            </span>
-                            {scan.product.stock !== null && (
-                              <span
-                                className={`font-medium ${
-                                  scan.product.stock > 0
-                                    ? "text-gray-700"
-                                    : "text-red-600"
-                                }`}
-                              >
-                                出库后库存: {scan.product.stock}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                    <span className="text-xs text-gray-500">
-                      {scan.timestamp}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
         {/* 返回首页链接 */}
         <div className="text-center mt-8">
           <Link
@@ -818,6 +914,376 @@ export default function ScannerPage() {
             ← 返回首页
           </Link>
         </div>
+
+        {/* 库存调整模态框 */}
+        {showStockModal && productInfo && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
+              <div className="p-6">
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-lg font-semibold text-gray-900">
+                    调整库存 - {productInfo.name}
+                  </h3>
+                  <button
+                    onClick={closeStockModal}
+                    className="text-gray-400 hover:text-gray-600"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                <div className="space-y-4">
+                  {/* 当前库存信息 */}
+                  <div className="bg-gray-50 p-4 rounded-lg">
+                    <div className="grid grid-cols-2 gap-4 text-base">
+                      <div>
+                        <span className="text-gray-700 font-medium">
+                          当前总库存:
+                        </span>
+                        <p className="font-bold text-lg text-gray-900">
+                          {productInfo.stock}
+                        </p>
+                      </div>
+                      <div>
+                        <span className="text-gray-700 font-medium">
+                          当前可用库存:
+                        </span>
+                        <p className="font-bold text-lg text-gray-900">
+                          {productInfo.available_stock || 0}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 调整类型 */}
+                  <div>
+                    <label className="block text-base font-semibold text-gray-800 mb-3">
+                      调整类型
+                    </label>
+                    <div className="grid grid-cols-3 gap-3">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setStockAdjustment({
+                            ...stockAdjustment,
+                            type: "add",
+                          })
+                        }
+                        className={`px-4 py-3 text-base font-medium rounded-lg border transition-colors ${
+                          stockAdjustment.type === "add"
+                            ? "bg-green-500 text-white border-green-500 shadow-md"
+                            : "bg-white text-gray-800 border-gray-300 hover:bg-gray-50 hover:border-gray-400"
+                        }`}
+                      >
+                        增加
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setStockAdjustment({
+                            ...stockAdjustment,
+                            type: "subtract",
+                          })
+                        }
+                        className={`px-4 py-3 text-base font-medium rounded-lg border transition-colors ${
+                          stockAdjustment.type === "subtract"
+                            ? "bg-red-500 text-white border-red-500 shadow-md"
+                            : "bg-white text-gray-800 border-gray-300 hover:bg-gray-50 hover:border-gray-400"
+                        }`}
+                      >
+                        减少
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setStockAdjustment({
+                            ...stockAdjustment,
+                            type: "set",
+                          })
+                        }
+                        className={`px-4 py-3 text-base font-medium rounded-lg border transition-colors ${
+                          stockAdjustment.type === "set"
+                            ? "bg-blue-500 text-white border-blue-500 shadow-md"
+                            : "bg-white text-gray-800 border-gray-300 hover:bg-gray-50 hover:border-gray-400"
+                        }`}
+                      >
+                        设置
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 调整数量 */}
+                  <div>
+                    <label className="block text-base font-semibold text-gray-800 mb-3">
+                      {stockAdjustment.type === "set" ? "设置为" : "调整数量"}
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={stockAdjustment.quantity}
+                      onChange={(e) =>
+                        setStockAdjustment({
+                          ...stockAdjustment,
+                          quantity: e.target.value,
+                        })
+                      }
+                      className="w-full px-4 py-3 text-base text-gray-900 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors placeholder-gray-500"
+                      placeholder="请输入数量"
+                    />
+                  </div>
+
+                  {/* 调整原因 */}
+                  <div>
+                    <label className="block text-base font-semibold text-gray-800 mb-3">
+                      调整原因
+                    </label>
+                    <input
+                      type="text"
+                      value={stockAdjustment.reason}
+                      onChange={(e) =>
+                        setStockAdjustment({
+                          ...stockAdjustment,
+                          reason: e.target.value,
+                        })
+                      }
+                      className="w-full px-4 py-3 text-base text-gray-900 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors placeholder-gray-500"
+                      placeholder="请输入调整原因（可选）"
+                    />
+                  </div>
+
+                  {/* 库存调整选项 */}
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-base font-semibold text-gray-800 mb-3">
+                        调整选项
+                      </label>
+                      <div className="space-y-3">
+                        <label className="flex items-center cursor-pointer">
+                          <input
+                            type="radio"
+                            name="stockOption"
+                            checked={
+                              !stockAdjustment.onlyAvailableStock &&
+                              stockAdjustment.adjustAvailableStock
+                            }
+                            onChange={() =>
+                              setStockAdjustment({
+                                ...stockAdjustment,
+                                onlyAvailableStock: false,
+                                adjustAvailableStock: true,
+                              })
+                            }
+                            className="mr-3 w-4 h-4 text-blue-600"
+                          />
+                          <span className="text-base text-gray-800">
+                            同时调整总库存和可用库存
+                          </span>
+                        </label>
+                        <label className="flex items-center cursor-pointer">
+                          <input
+                            type="radio"
+                            name="stockOption"
+                            checked={
+                              !stockAdjustment.onlyAvailableStock &&
+                              !stockAdjustment.adjustAvailableStock
+                            }
+                            onChange={() =>
+                              setStockAdjustment({
+                                ...stockAdjustment,
+                                onlyAvailableStock: false,
+                                adjustAvailableStock: false,
+                              })
+                            }
+                            className="mr-3 w-4 h-4 text-blue-600"
+                          />
+                          <span className="text-base text-gray-800">
+                            仅调整总库存
+                          </span>
+                        </label>
+                        <label className="flex items-center cursor-pointer">
+                          <input
+                            type="radio"
+                            name="stockOption"
+                            checked={stockAdjustment.onlyAvailableStock}
+                            onChange={() =>
+                              setStockAdjustment({
+                                ...stockAdjustment,
+                                onlyAvailableStock: true,
+                                adjustAvailableStock: false,
+                              })
+                            }
+                            className="mr-3 w-4 h-4 text-blue-600"
+                          />
+                          <span className="text-base text-gray-800">
+                            仅调整可用库存
+                          </span>
+                        </label>
+                      </div>
+                      <p className="text-sm text-gray-600 mt-3 font-medium">
+                        {stockAdjustment.onlyAvailableStock
+                          ? "仅调整可用库存，总库存保持不变"
+                          : stockAdjustment.adjustAvailableStock
+                          ? "同时调整总库存和可用库存"
+                          : "仅调整总库存，可用库存保持不变"}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* 调整结果预览 */}
+                  {stockAdjustment.quantity && (
+                    <div className="bg-gray-50 p-4 rounded-lg border">
+                      <h4 className="text-base font-semibold text-gray-800 mb-3">
+                        调整结果预览
+                      </h4>
+                      <div className="space-y-2 text-base">
+                        {stockAdjustment.onlyAvailableStock ? (
+                          <>
+                            <div className="flex justify-between">
+                              <span className="text-gray-700 font-medium">
+                                总库存：
+                              </span>
+                              <span className="text-gray-800 font-semibold">
+                                {productInfo.stock} (保持不变)
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-gray-700 font-medium">
+                                可用库存：
+                              </span>
+                              <span className="text-blue-600 font-semibold">
+                                {productInfo.available_stock} →{" "}
+                                {(() => {
+                                  const quantity =
+                                    parseInt(stockAdjustment.quantity) || 0;
+                                  if (stockAdjustment.type === "add") {
+                                    return (
+                                      (productInfo.available_stock || 0) +
+                                      quantity
+                                    );
+                                  } else if (
+                                    stockAdjustment.type === "subtract"
+                                  ) {
+                                    return Math.max(
+                                      0,
+                                      (productInfo.available_stock || 0) -
+                                        quantity
+                                    );
+                                  } else if (stockAdjustment.type === "set") {
+                                    return Math.min(
+                                      quantity,
+                                      productInfo.stock
+                                    );
+                                  }
+                                  return productInfo.available_stock;
+                                })()}
+                              </span>
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <div className="flex justify-between">
+                              <span className="text-gray-700 font-medium">
+                                总库存：
+                              </span>
+                              <span className="text-blue-600 font-semibold">
+                                {productInfo.stock} →{" "}
+                                {(() => {
+                                  const quantity =
+                                    parseInt(stockAdjustment.quantity) || 0;
+                                  if (stockAdjustment.type === "add") {
+                                    return productInfo.stock + quantity;
+                                  } else if (
+                                    stockAdjustment.type === "subtract"
+                                  ) {
+                                    return Math.max(
+                                      0,
+                                      productInfo.stock - quantity
+                                    );
+                                  } else if (stockAdjustment.type === "set") {
+                                    return quantity;
+                                  }
+                                  return productInfo.stock;
+                                })()}
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-gray-700 font-medium">
+                                可用库存：
+                              </span>
+                              <span
+                                className={`font-semibold ${
+                                  stockAdjustment.adjustAvailableStock
+                                    ? "text-blue-600"
+                                    : "text-gray-800"
+                                }`}
+                              >
+                                {stockAdjustment.adjustAvailableStock ? (
+                                  <>
+                                    {productInfo.available_stock} →{" "}
+                                    {(() => {
+                                      const quantity =
+                                        parseInt(stockAdjustment.quantity) || 0;
+                                      if (stockAdjustment.type === "add") {
+                                        return (
+                                          (productInfo.available_stock || 0) +
+                                          quantity
+                                        );
+                                      } else if (
+                                        stockAdjustment.type === "subtract"
+                                      ) {
+                                        return Math.max(
+                                          0,
+                                          (productInfo.available_stock || 0) -
+                                            quantity
+                                        );
+                                      } else if (
+                                        stockAdjustment.type === "set"
+                                      ) {
+                                        return Math.min(quantity, quantity);
+                                      }
+                                      return productInfo.available_stock;
+                                    })()}
+                                  </>
+                                ) : (
+                                  `${productInfo.available_stock} (保持不变)`
+                                )}
+                              </span>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                      {stockAdjustment.onlyAvailableStock && (
+                        <p className="text-sm text-orange-600 mt-3 font-medium">
+                          ⚠️ 请确保调整后的可用库存不超过总库存(
+                          {productInfo.stock})
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* 操作按钮 */}
+                <div className="flex justify-end space-x-4 pt-6 border-t">
+                  <button
+                    type="button"
+                    onClick={closeStockModal}
+                    className="px-6 py-3 text-base font-medium text-gray-800 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:border-gray-400 focus:ring-2 focus:ring-blue-500 transition-colors"
+                  >
+                    取消
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleStockAdjustment}
+                    disabled={!stockAdjustment.quantity || isAdjustingStock}
+                    className="px-6 py-3 text-base font-medium text-white bg-blue-600 border border-transparent rounded-lg hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-md"
+                  >
+                    {isAdjustingStock ? "调整中..." : "确认调整"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* 页脚信息 */}
         <footer className="text-center mt-12 pt-8 border-t border-gray-200">

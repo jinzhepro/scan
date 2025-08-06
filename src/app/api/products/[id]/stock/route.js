@@ -4,12 +4,12 @@ import { adjustProductStock } from "@/lib/products";
 /**
  * 调整商品库存
  * PUT /api/products/[id]/stock
- * Body: { type: 'add' | 'subtract' | 'set', quantity: number, reason?: string }
+ * Body: { type: 'add' | 'subtract' | 'set', quantity: number, reason?: string, adjustAvailableStock?: boolean, onlyAvailableStock?: boolean }
  */
 export async function PUT(request, { params }) {
   try {
     const { id } = await params;
-    const { type, quantity, reason } = await request.json();
+    const { type, quantity, reason, adjustAvailableStock, onlyAvailableStock } = await request.json();
 
     // 验证商品ID
     if (!id || isNaN(parseInt(id))) {
@@ -49,6 +49,8 @@ export async function PUT(request, { params }) {
       type,
       quantity: parseInt(quantity),
       reason: reason || "手动调整",
+      adjustAvailableStock,
+      onlyAvailableStock,
     });
 
     if (!result.success) {
