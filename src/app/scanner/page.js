@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import { useEffect, useRef, useState } from 'react';
-import Link from 'next/link';
-import { BrowserMultiFormatReader, NotFoundException } from '@zxing/library';
+import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
+import { BrowserMultiFormatReader, NotFoundException } from "@zxing/library";
 
 /**
  * 条形码/二维码扫描页面组件
@@ -10,11 +10,11 @@ import { BrowserMultiFormatReader, NotFoundException } from '@zxing/library';
  */
 export default function ScannerPage() {
   // 状态管理
-  const [selectedDeviceId, setSelectedDeviceId] = useState('');
+  const [selectedDeviceId, setSelectedDeviceId] = useState("");
   const [videoInputDevices, setVideoInputDevices] = useState([]);
-  const [result, setResult] = useState('');
+  const [result, setResult] = useState("");
   const [isScanning, setIsScanning] = useState(false);
-  
+
   // DOM引用
   const videoRef = useRef(null);
   const codeReaderRef = useRef(null);
@@ -23,20 +23,27 @@ export default function ScannerPage() {
    * 初始化ZXing代码读取器和摄像头设备列表
    */
   useEffect(() => {
+    console.log('🚀 Initializing scanner component');
+    
     // 创建ZXing代码读取器实例
     codeReaderRef.current = new BrowserMultiFormatReader();
-    console.log('ZXing code reader initialized');
+    console.log('✅ ZXing code reader initialized');
 
     // 获取可用的视频输入设备
-    codeReaderRef.current.listVideoInputDevices()
+    codeReaderRef.current
+      .listVideoInputDevices()
       .then((devices) => {
+        console.log('📹 Available video devices:', devices);
         setVideoInputDevices(devices);
         if (devices.length > 0) {
           setSelectedDeviceId(devices[0].deviceId);
+          console.log('📱 Default device selected:', devices[0].deviceId);
+        } else {
+          console.warn('⚠️ No video devices found');
         }
       })
       .catch((err) => {
-        console.error('Error listing video devices:', err);
+        console.error('❌ Error listing video devices:', err);
       });
 
     // 组件卸载时清理资源
@@ -52,7 +59,15 @@ export default function ScannerPage() {
    * 使用选定的摄像头设备开始连续扫描
    */
   const handleStartScan = () => {
-    if (!selectedDeviceId || !videoRef.current) return;
+    console.log('🎯 Starting scan process...');
+    
+    if (!selectedDeviceId || !videoRef.current) {
+      console.error('❌ Cannot start scan: missing deviceId or video element');
+      return;
+    }
+
+    console.log('📷 Selected device ID:', selectedDeviceId);
+    console.log('🎥 Video element:', videoRef.current);
 
     setIsScanning(true);
     setResult('');
@@ -62,17 +77,18 @@ export default function ScannerPage() {
       videoRef.current,
       (result, err) => {
         if (result) {
-          console.log('Scan result:', result);
+          console.log('🎉 Scan result found:', result);
+          console.log('📝 Result text:', result.text);
           setResult(result.text);
         }
         if (err && !(err instanceof NotFoundException)) {
-          console.error('Scan error:', err);
+          console.error('❌ Scan error:', err);
           setResult(`Error: ${err.message}`);
         }
       }
     );
 
-    console.log(`Started continuous decode from camera with id ${selectedDeviceId}`);
+    console.log(`✅ Started continuous decode from camera with id ${selectedDeviceId}`);
   };
 
   /**
@@ -80,23 +96,31 @@ export default function ScannerPage() {
    * 停止扫描并清除结果
    */
   const handleReset = () => {
+    console.log('🔄 Resetting scanner...');
+    
     if (codeReaderRef.current) {
       codeReaderRef.current.reset();
+      console.log('✅ Scanner reset completed');
     }
     setIsScanning(false);
     setResult('');
-    console.log('Scanner reset');
+    console.log('🧹 UI state cleared');
   };
 
   /**
    * 处理摄像头设备切换
    */
   const handleDeviceChange = (event) => {
-    setSelectedDeviceId(event.target.value);
+    const newDeviceId = event.target.value;
+    console.log('🔄 Switching camera device from', selectedDeviceId, 'to', newDeviceId);
+    
+    setSelectedDeviceId(newDeviceId);
     if (isScanning) {
+      console.log('⏸️ Stopping current scan to switch device');
       // 如果正在扫描，重新开始扫描新设备
       handleReset();
       setTimeout(() => {
+        console.log('▶️ Restarting scan with new device');
         handleStartScan();
       }, 100);
     }
@@ -123,7 +147,7 @@ export default function ScannerPage() {
             disabled={!selectedDeviceId || isScanning}
             className="bg-blue-500 hover:bg-blue-600 disabled:bg-gray-400 text-white font-medium py-2 px-6 rounded-lg transition-colors"
           >
-            {isScanning ? '扫描中...' : '开始扫描'}
+            {isScanning ? "扫描中..." : "开始扫描"}
           </button>
           <button
             onClick={handleReset}
@@ -141,7 +165,7 @@ export default function ScannerPage() {
               width="400"
               height="300"
               className="border border-gray-300 rounded"
-              style={{ objectFit: 'cover' }}
+              style={{ objectFit: "cover" }}
             />
           </div>
         </div>
@@ -149,7 +173,10 @@ export default function ScannerPage() {
         {/* 摄像头选择器 */}
         {videoInputDevices.length > 1 && (
           <div className="max-w-md mx-auto mb-6">
-            <label htmlFor="deviceSelect" className="block text-sm font-medium text-gray-700 mb-2">
+            <label
+              htmlFor="deviceSelect"
+              className="block text-sm font-medium text-gray-700 mb-2"
+            >
               选择摄像头设备:
             </label>
             <select
@@ -174,7 +201,7 @@ export default function ScannerPage() {
           </label>
           <div className="bg-white border border-gray-300 rounded-lg p-4 min-h-[100px]">
             <pre className="whitespace-pre-wrap text-sm text-gray-900 font-mono">
-              {result || '等待扫描结果...'}
+              {result || "等待扫描结果..."}
             </pre>
           </div>
         </div>
@@ -192,7 +219,16 @@ export default function ScannerPage() {
         {/* 页脚信息 */}
         <footer className="text-center mt-12 pt-8 border-t border-gray-200">
           <p className="text-gray-500 text-sm">
-            基于 <a href="https://github.com/zxing-js/library" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800">ZXing JavaScript库</a> 构建
+            基于{" "}
+            <a
+              href="https://github.com/zxing-js/library"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-600 hover:text-blue-800"
+            >
+              ZXing JavaScript库
+            </a>{" "}
+            构建
           </p>
         </footer>
       </div>
