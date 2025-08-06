@@ -16,6 +16,9 @@ export default function ScannerPage() {
   const [lastScanTime, setLastScanTime] = useState(0);
   const [isEditing, setIsEditing] = useState(false);
   const [editableResult, setEditableResult] = useState("");
+  const [productInfo, setProductInfo] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [scanHistory, setScanHistory] = useState([]);
 
   // DOM引用
   const videoRef = useRef(null);
@@ -124,6 +127,10 @@ export default function ScannerPage() {
             setResult(result.text);
             setEditableResult(result.text);
             setIsEditing(false); // 新扫描结果时退出编辑模式
+            
+            // 自动查询商品信息
+            queryProductInfo(result.text);
+            
             // 成功扫描后可以选择停止扫描
             // handleReset();
           }
@@ -145,6 +152,45 @@ export default function ScannerPage() {
       console.error("❌ Failed to start scanning:", error);
       setResult(`启动扫描失败: ${error.message}`);
       setIsScanning(false);
+    }
+  };
+
+  /**
+   * 查询商品信息
+   * 根据扫描到的条形码查询数据库中的商品信息
+   */
+  const queryProductInfo = async (barcode) => {
+    if (!barcode) return;
+    
+    setIsLoading(true);
+    try {
+      console.log("🔍 Querying product info for barcode:", barcode);
+      
+      const response = await fetch(`/api/products/barcode/${encodeURIComponent(barcode)}`);
+      const data = await response.json();
+      
+      if (data.success) {
+        if (data.found) {
+          console.log("✅ Product found:", data.data);
+          setProductInfo(data.data);
+        } else {
+          console.log("ℹ️ Product not found, scan recorded");
+          setProductInfo(null);
+        }
+        
+        // 更新扫描历史
+        setScanHistory(prev => [{
+          barcode,
+          product: data.found ? data.data : null,
+          timestamp: new Date().toLocaleString(),
+          found: data.found
+        }, ...prev.slice(0, 9)]); // 保留最近10条记录
+      }
+    } catch (error) {
+      console.error("❌ Failed to query product:", error);
+      setProductInfo(null);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -197,6 +243,8 @@ export default function ScannerPage() {
     setLastScanTime(0);
     setIsEditing(false);
     setEditableResult("");
+    setProductInfo(null);
+    setIsLoading(false);
     console.log("🧹 All states cleared");
   };
 
@@ -312,6 +360,116 @@ export default function ScannerPage() {
             </div>
           )}
         </div>
+
+        {/* 商品信息显示 */}
+        {result && (
+          <div className="max-w-2xl mx-auto mt-6">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              商品信息:
+            </label>
+            
+            {isLoading ? (
+              <div className="bg-white border border-gray-300 rounded-lg p-4 text-center">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500 mx-auto mb-2"></div>
+                <p className="text-gray-600 text-sm">正在查询商品信息...</p>
+              </div>
+            ) : productInfo ? (
+              <div className="bg-white border border-green-300 rounded-lg p-4 border-l-4 border-l-green-500">
+                <div className="flex items-start justify-between mb-3">
+                  <h3 className="text-lg font-semibold text-gray-900">{productInfo.name}</h3>
+                  <span className="bg-green-100 text-green-800 text-xs font-medium px-2 py-1 rounded">
+                    已找到
+                  </span>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <span className="text-gray-600">条形码:</span>
+                    <p className="font-mono text-gray-900">{productInfo.barcode}</p>
+                  </div>
+                  <div>
+                    <span className="text-gray-600">价格:</span>
+                    <p className="font-semibold text-green-600">¥{productInfo.price}</p>
+                  </div>
+                  {productInfo.category && (
+                    <div>
+                      <span className="text-gray-600">分类:</span>
+                      <p className="text-gray-900">{productInfo.category}</p>
+                    </div>
+                  )}
+                  {productInfo.brand && (
+                    <div>
+                      <span className="text-gray-600">品牌:</span>
+                      <p className="text-gray-900">{productInfo.brand}</p>
+                    </div>
+                  )}
+                  {productInfo.stock !== null && (
+                    <div>
+                      <span className="text-gray-600">库存:</span>
+                      <p className="text-gray-900">{productInfo.stock}</p>
+                    </div>
+                  )}
+                </div>
+                
+                {productInfo.description && (
+                  <div className="mt-3 pt-3 border-t border-gray-200">
+                    <span className="text-gray-600 text-sm">描述:</span>
+                    <p className="text-gray-900 text-sm mt-1">{productInfo.description}</p>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="bg-white border border-yellow-300 rounded-lg p-4 border-l-4 border-l-yellow-500">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-lg font-semibold text-gray-900">未找到商品信息</h3>
+                  <span className="bg-yellow-100 text-yellow-800 text-xs font-medium px-2 py-1 rounded">
+                    未知商品
+                  </span>
+                </div>
+                <p className="text-gray-600 text-sm mb-3">
+                  数据库中没有找到该条形码对应的商品信息，但扫描记录已保存。
+                </p>
+                <div className="text-sm">
+                  <span className="text-gray-600">条形码:</span>
+                  <p className="font-mono text-gray-900">{result}</p>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* 扫描历史 */}
+        {scanHistory.length > 0 && (
+          <div className="max-w-2xl mx-auto mt-6">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              扫描历史 (最近10条):
+            </label>
+            <div className="bg-white border border-gray-300 rounded-lg divide-y divide-gray-200">
+              {scanHistory.map((scan, index) => (
+                <div key={index} className="p-3 hover:bg-gray-50">
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-sm text-gray-900">{scan.barcode}</span>
+                        <span className={`text-xs px-2 py-1 rounded ${
+                          scan.found 
+                            ? 'bg-green-100 text-green-800' 
+                            : 'bg-yellow-100 text-yellow-800'
+                        }`}>
+                          {scan.found ? '已识别' : '未知'}
+                        </span>
+                      </div>
+                      {scan.product && (
+                        <p className="text-sm text-gray-600 mt-1">{scan.product.name}</p>
+                      )}
+                    </div>
+                    <span className="text-xs text-gray-500">{scan.timestamp}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* 返回首页链接 */}
         <div className="text-center mt-8">
