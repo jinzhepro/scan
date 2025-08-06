@@ -173,56 +173,49 @@ export default function QRScanner() {
   };
 
   return (
-    <div className="max-w-md mx-auto p-6">
-      <div className="text-center">
-        <h2 className="text-2xl font-bold text-gray-800 mb-4">条形码扫描器</h2>
-
-        {/* 调试信息 */}
-        <div className="mb-4 p-2 bg-gray-100 rounded text-xs text-left">
-          <p>
-            <strong>调试状态:</strong>
-          </p>
-          <p>
-            设备类型:{" "}
-            {isIOS() ? "📱 iOS" : isAndroid() ? "🤖 Android" : "💻 其他"}
-          </p>
-          <p>isScanning: {isScanning ? "✅" : "❌"}</p>
-          <p>isLoading: {isLoading ? "⏳" : "✅"}</p>
-          <p>scanResult: {scanResult ? "✅" : "❌"}</p>
-          <p>error: {error ? "❌" : "✅"}</p>
-        </div>
-
-        {/* 开始扫描按钮 */}
-        {!isScanning && !scanResult && (
-          <div className="space-y-3">
-            <button
-              onClick={() => {
-                console.log("🔘 用户点击了开始扫描按钮");
-                startScanning();
-              }}
-              disabled={isLoading}
-              className="px-8 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isLoading ? "启动中..." : "开始扫描"}
-            </button>
-
-            {/* 重试按钮 - 仅在加载状态下显示 */}
-            {isLoading && (
-              <div className="text-center">
-                <p className="text-sm text-gray-600 mb-2">启动时间较长？</p>
-                <button
-                  onClick={() => {
-                    stopScanning();
-                    setTimeout(startScanning, 500);
-                  }}
-                  className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 transition-colors text-sm"
-                >
-                  重新尝试
-                </button>
-              </div>
-            )}
+    <div className="max-w-2xl mx-auto">
+      <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-200">
+        <div className="text-center">
+          <div className="flex items-center justify-center w-16 h-16 bg-blue-100 rounded-lg mb-4 mx-auto">
+            <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M12 12h-4.01M12 12v4m6-4h.01M12 8h.01" />
+            </svg>
           </div>
-        )}
+          <h2 className="text-2xl font-bold text-gray-800 mb-2">条形码扫描器</h2>
+          <p className="text-gray-600 mb-6">将条形码对准扫描框进行识别</p>
+
+          {/* 开始扫描按钮 */}
+          {!isScanning && !scanResult && (
+            <div className="space-y-3">
+              <button
+                onClick={() => {
+                  console.log("🔘 用户点击了开始扫描按钮");
+                  startScanning();
+                }}
+                disabled={isLoading}
+                className="px-8 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isLoading ? "启动中..." : "开始扫描"}
+              </button>
+
+              {/* 重试按钮 - 仅在加载状态下显示 */}
+              {isLoading && (
+                <div className="text-center">
+                  <p className="text-sm text-gray-600 mb-2">启动时间较长？</p>
+                  <button
+                    onClick={() => {
+                      stopScanning();
+                      setTimeout(startScanning, 500);
+                    }}
+                    className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 transition-colors text-sm"
+                  >
+                    重新尝试
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* 摄像头预览 */}
