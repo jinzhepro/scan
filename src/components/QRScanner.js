@@ -38,6 +38,32 @@ export default function QRScanner() {
   };
 
   /**
+   * 检测是否为安卓设备
+   */
+  const isAndroid = () => {
+    return /Android/i.test(navigator.userAgent);
+  };
+
+
+
+  /**
+   * 复制扫描结果到剪贴板
+   */
+  const copyToClipboard = async (text) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.success("已复制到剪贴板", {
+        duration: 2000,
+      });
+    } catch (err) {
+      toast.error("复制失败", {
+        description: "请手动复制内容",
+        duration: 3000,
+      });
+    }
+  };
+
+  /**
    * 渲染扫描结果
    */
   const renderScanResult = () => {
@@ -48,6 +74,11 @@ export default function QRScanner() {
         <h3 className="text-lg font-semibold text-green-800 mb-2">
           扫描成功！
         </h3>
+        <div className="mb-2">
+          <span className="inline-block px-2 py-1 bg-green-100 text-green-800 text-sm rounded">
+            {scanResult.type === 'QR_CODE' ? '二维码' : `条形码 (${scanResult.type})`}
+          </span>
+        </div>
         <div className="bg-white p-3 rounded border">
           <p className="text-sm text-gray-600 mb-1">扫描内容：</p>
           <p className="font-mono text-sm break-all">{scanResult.data}</p>
@@ -68,23 +99,6 @@ export default function QRScanner() {
         </div>
       </div>
     );
-  };
-
-  /**
-   * 复制扫描结果到剪贴板
-   */
-  const copyToClipboard = async (text) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      toast.success("已复制到剪贴板", {
-        duration: 2000,
-      });
-    } catch (err) {
-      toast.error("复制失败", {
-        description: "请手动复制内容",
-        duration: 3000,
-      });
-    }
   };
 
   /**
@@ -163,11 +177,12 @@ export default function QRScanner() {
   return (
     <div className="max-w-md mx-auto p-6">
       <div className="text-center">
-        <h2 className="text-2xl font-bold text-gray-800 mb-4">二维码扫描器</h2>
+        <h2 className="text-2xl font-bold text-gray-800 mb-4">二维码/条形码扫描器</h2>
         
         {/* 调试信息 */}
         <div className="mb-4 p-2 bg-gray-100 rounded text-xs text-left">
           <p><strong>调试状态:</strong></p>
+          <p>设备类型: {isIOS() ? '📱 iOS' : isAndroid() ? '🤖 Android' : '💻 其他'}</p>
           <p>isScanning: {isScanning ? '✅' : '❌'}</p>
           <p>isLoading: {isLoading ? '⏳' : '✅'}</p>
           <p>scanResult: {scanResult ? '✅' : '❌'}</p>
@@ -219,9 +234,10 @@ export default function QRScanner() {
           <h3 className="font-semibold text-gray-800 mb-2">使用说明：</h3>
           <ul className="text-sm text-gray-600 space-y-1">
             <li>• 点击&ldquo;开始扫描&rdquo;按钮启动摄像头</li>
-            <li>• 将二维码对准扫描框</li>
-            <li>• 系统会自动识别并显示结果</li>
-            <li>• 支持各种类型的二维码和条形码</li>
+            <li>• 将二维码或条形码对准摄像头扫描框内</li>
+            <li>• 保持适当距离，确保码清晰可见</li>
+            <li>• 支持多种格式：QR码、EAN、UPC、Code128等</li>
+            <li>• 扫描成功后会自动显示结果和格式类型</li>
             {isIOS() && (
               <>
                 <li className="text-orange-600 font-medium">
@@ -232,6 +248,19 @@ export default function QRScanner() {
                 </li>
                 <li className="text-orange-600">
                   • 请确保允许摄像头权限并在 HTTPS 环境下访问
+                </li>
+              </>
+            )}
+            {isAndroid() && (
+              <>
+                <li className="text-blue-600 font-medium">
+                  • Android 用户：已自动优化性能设置
+                </li>
+                <li className="text-blue-600">
+                  • 建议使用 Chrome 浏览器获得最佳体验
+                </li>
+                <li className="text-blue-600">
+                  • 如遇卡顿，系统会自动降低分辨率和帧率
                 </li>
               </>
             )}

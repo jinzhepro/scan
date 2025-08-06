@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { toast } from 'sonner';
 import jsQR from 'jsqr';
+import { BrowserMultiFormatReader, NotFoundException } from '@zxing/library';
+import { toast } from 'sonner';
 
 /**
  * 二维码扫描 Hook
@@ -32,6 +33,32 @@ export function useQRScanner() {
    */
   const isSafari = useCallback(() => {
     return /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+  }, []);
+
+  /**
+   * 检测是否为安卓设备
+   */
+  const isAndroid = useCallback(() => {
+    return /Android/i.test(navigator.userAgent);
+  }, []);
+
+  /**
+   * 检测是否为低端设备（需要性能优化）
+   */
+  const isLowEndDevice = useCallback(() => {
+    // 检测设备内存（如果可用）
+    const memory = navigator.deviceMemory;
+    if (memory && memory <= 2) return true;
+    
+    // 检测CPU核心数（如果可用）
+    const cores = navigator.hardwareConcurrency;
+    if (cores && cores <= 2) return true;
+    
+    // 检测是否为老旧安卓设备
+    const userAgent = navigator.userAgent;
+    if (/Android [4-6]\./i.test(userAgent)) return true;
+    
+    return false;
   }, []);
 
   /**
@@ -68,20 +95,47 @@ export function useQRScanner() {
       }
       console.log('✅ 安全上下文检查通过');
 
-      // iOS Safari 特殊处理
+      // 设备检测
       const isIOSDevice = isIOS();
       const isSafariBrowser = isSafari();
+      const isAndroidDevice = isAndroid();
+      const isLowEnd = isLowEndDevice();
 
       // 基础摄像头配置
       let constraints = {
         video: {
-          facingMode: 'environment', // iOS Safari 更喜欢简单的字符串
+          facingMode: 'environment',
         },
         audio: false
       };
 
-      // 非iOS设备或非Safari浏览器可以使用更复杂的配置
-      if (!isIOSDevice || !isSafariBrowser) {
+      // 根据设备类型优化配置
+      if (isIOSDevice && isSafariBrowser) {
+        // iOS Safari 使用简单配置
+        constraints.video = {
+          facingMode: 'environment',
+        };
+      } else if (isAndroidDevice) {
+        // 安卓设备优化配置
+        if (isLowEnd) {
+          // 低端安卓设备：使用最低配置以确保流畅性
+          constraints.video = {
+            facingMode: { ideal: 'environment' },
+            width: { ideal: 640, max: 854 },
+            height: { ideal: 480, max: 640 },
+            frameRate: { ideal: 15, max: 20 }
+          };
+        } else {
+          // 中高端安卓设备：平衡性能和质量
+          constraints.video = {
+            facingMode: { ideal: 'environment' },
+            width: { ideal: 854, max: 1280 },
+            height: { ideal: 640, max: 720 },
+            frameRate: { ideal: 20, max: 30 }
+          };
+        }
+      } else {
+        // 其他设备（桌面浏览器等）：使用高质量配置
         constraints.video = {
           facingMode: { ideal: 'environment' },
           width: { ideal: 1280, max: 1920 },
@@ -93,8 +147,22 @@ export function useQRScanner() {
 
       let stream = null;
       
-      console.log('📱 设备检测:', { isIOSDevice, isSafariBrowser });
+      console.log('📱 设备检测:', { 
+        isIOSDevice, 
+        isSafariBrowser, 
+        isAndroidDevice, 
+        isLowEnd,
+        deviceMemory: navigator.deviceMemory,
+        hardwareConcurrency: navigator.hardwareConcurrency
+      });
       console.log('🎯 摄像头配置:', constraints);
+      
+      if (isAndroidDevice) {
+        console.log('🤖 安卓设备性能优化:');
+        console.log('  - 设备类型:', isLowEnd ? '低端设备' : '中高端设备');
+        console.log('  - 扫描频率:', isLowEnd ? '10 FPS' : '15 FPS');
+        console.log('  - 处理分辨率:', isLowEnd ? '480x360' : '640x480');
+      }
       
       try {
         // 首次尝试获取摄像头
@@ -329,7 +397,7 @@ export function useQRScanner() {
   }, []);
 
   /**
-   * 扫描二维码
+   * 扫描二维码和条形码
    */
   const scanQRCode = useCallback(() => {
     if (!videoRef.current || !canvasRef.current || !isScanning) {
@@ -341,41 +409,116 @@ export function useQRScanner() {
     const context = canvas.getContext('2d');
 
     if (video.readyState === video.HAVE_ENOUGH_DATA) {
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
+      // 根据设备性能调整画布尺寸
+      const isAndroidDevice = isAndroid();
+      const isLowEnd = isLowEndDevice();
+      
+      let canvasWidth = video.videoWidth;
+      let canvasHeight = video.videoHeight;
+      
+      // 安卓设备性能优化：降低处理分辨率
+      if (isAndroidDevice) {
+        if (isLowEnd) {
+          // 低端设备：大幅降低分辨率
+          const scale = Math.min(480 / canvasWidth, 360 / canvasHeight);
+          canvasWidth = Math.floor(canvasWidth * scale);
+          canvasHeight = Math.floor(canvasHeight * scale);
+        } else {
+          // 中端设备：适度降低分辨率
+          const scale = Math.min(640 / canvasWidth, 480 / canvasHeight);
+          canvasWidth = Math.floor(canvasWidth * scale);
+          canvasHeight = Math.floor(canvasHeight * scale);
+        }
+      }
+      
+      canvas.width = canvasWidth;
+      canvas.height = canvasHeight;
       
       // 将视频帧绘制到画布上
-      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+      context.drawImage(video, 0, 0, canvasWidth, canvasHeight);
       
       // 获取图像数据
-      const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+      const imageData = context.getImageData(0, 0, canvasWidth, canvasHeight);
       
-      // 使用 jsQR 识别二维码
-      const code = jsQR(imageData.data, imageData.width, imageData.height);
+      // 首先尝试使用 jsQR 识别二维码（速度更快）
+      const qrCode = jsQR(imageData.data, imageData.width, imageData.height);
       
-      if (code) {
+      if (qrCode) {
         const result = {
-          data: code.data,
-          location: code.location,
-          timestamp: Date.now()
+          data: qrCode.data,
+          location: qrCode.location,
+          timestamp: Date.now(),
+          type: 'QR_CODE'
         };
         
         setScanResult(result);
         
         // 显示扫描成功的 toast
-        toast.success('扫描成功！', {
-          description: `识别到内容: ${code.data.length > 50 ? code.data.substring(0, 50) + '...' : code.data}`,
+        toast.success('二维码扫描成功！', {
+          description: `识别到内容: ${qrCode.data.length > 50 ? qrCode.data.substring(0, 50) + '...' : qrCode.data}`,
           duration: 3000,
         });
         
         stopScanning();
         return;
       }
+      
+      // 如果没有识别到二维码，尝试使用 ZXing 识别条形码
+      try {
+        const codeReader = new BrowserMultiFormatReader();
+        
+        // 从画布创建 ImageData 进行条形码识别
+        const result = codeReader.decodeFromImageData(imageData);
+        
+        if (result) {
+          const scanResult = {
+            data: result.getText(),
+            timestamp: Date.now(),
+            type: result.getBarcodeFormat().toString()
+          };
+          
+          setScanResult(scanResult);
+          
+          // 显示扫描成功的 toast
+          toast.success('条形码扫描成功！', {
+            description: `格式: ${result.getBarcodeFormat()} | 内容: ${result.getText().length > 30 ? result.getText().substring(0, 30) + '...' : result.getText()}`,
+            duration: 3000,
+          });
+          
+          stopScanning();
+          return;
+        }
+      } catch (err) {
+        // ZXing 识别失败是正常的，不需要处理
+        if (!(err instanceof NotFoundException)) {
+          console.warn('条形码识别错误:', err);
+        }
+      }
     }
 
-    // 继续扫描
-    animationRef.current = requestAnimationFrame(scanQRCode);
-  }, [isScanning, stopScanning]);
+    // 根据设备性能调整扫描频率
+    const isAndroidDevice = isAndroid();
+    const isLowEnd = isLowEndDevice();
+    
+    if (isAndroidDevice && isLowEnd) {
+      // 低端安卓设备：降低扫描频率到 10 FPS
+      setTimeout(() => {
+        if (isScanning) {
+          animationRef.current = requestAnimationFrame(scanQRCode);
+        }
+      }, 100);
+    } else if (isAndroidDevice) {
+      // 中端安卓设备：降低扫描频率到 15 FPS
+      setTimeout(() => {
+        if (isScanning) {
+          animationRef.current = requestAnimationFrame(scanQRCode);
+        }
+      }, 66);
+    } else {
+      // 其他设备：正常频率
+      animationRef.current = requestAnimationFrame(scanQRCode);
+    }
+  }, [isScanning, stopScanning, isAndroid, isLowEndDevice]);
 
   /**
    * 重新扫描
