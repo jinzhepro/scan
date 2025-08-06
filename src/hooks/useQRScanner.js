@@ -467,7 +467,7 @@ export function useQRScanner() {
           try {
             // 方式1: 从Canvas元素识别
             console.log('🔍 尝试从Canvas识别...');
-            const result = await codeReader.decodeFromCanvas(canvas);
+            const result = await codeReader.decode(canvas);
             return result;
           } catch (canvasError) {
             console.log('❌ Canvas识别失败:', canvasError.message);
@@ -475,7 +475,14 @@ export function useQRScanner() {
             try {
               // 方式2: 从ImageData识别
               console.log('🔍 尝试从ImageData识别...');
-              const result = await codeReader.decodeFromImageData(imageData);
+              // 创建临时canvas来处理ImageData
+              const tempCanvas = document.createElement('canvas');
+              const tempContext = tempCanvas.getContext('2d');
+              tempCanvas.width = canvas.width;
+              tempCanvas.height = canvas.height;
+              tempContext.putImageData(imageData, 0, 0);
+              
+              const result = await codeReader.decode(tempCanvas);
               return result;
             } catch (imageDataError) {
               console.log('❌ ImageData识别失败:', imageDataError.message);
@@ -483,7 +490,7 @@ export function useQRScanner() {
               try {
                 // 方式3: 从视频元素直接识别
                 console.log('🔍 尝试从视频元素识别...');
-                const result = await codeReader.decodeFromVideoElement(video);
+                const result = await codeReader.decode(video);
                 return result;
               } catch (videoError) {
                 console.log('❌ 视频元素识别失败:', videoError.message);
@@ -648,9 +655,17 @@ export function useQRScanner() {
     try {
       console.log('🔍 开始增强识别拍照图片中的条形码...');
       
+      // 检查 ZXing 库是否正确加载
+      console.log('📚 ZXing库检查:', {
+        BrowserMultiFormatReader: typeof BrowserMultiFormatReader,
+        NotFoundException: typeof NotFoundException,
+        hasConstructor: typeof BrowserMultiFormatReader === 'function'
+      });
+
       // 创建 BrowserMultiFormatReader 实例
       const codeReader = new BrowserMultiFormatReader();
       console.log('✅ BrowserMultiFormatReader 实例创建成功');
+      console.log('🔧 可用方法:', Object.getOwnPropertyNames(Object.getPrototypeOf(codeReader)));
       
       // 增强识别策略
       const enhancedDecode = async () => {
@@ -660,12 +675,12 @@ export function useQRScanner() {
         attempts.push(
           (async () => {
             console.log('🔍 策略1: 原始图像识别...');
-            try {
-              return await codeReader.decodeFromCanvas(canvas);
-            } catch (error) {
-              console.log('❌ 原始图像识别失败:', error.message);
-              throw error;
-            }
+                try {
+                  return await codeReader.decode(canvas);
+                } catch (error) {
+                  console.log('❌ 原始图像识别失败:', error.message);
+                  throw error;
+                }
           })()
         );
         
@@ -683,7 +698,7 @@ export function useQRScanner() {
               // 应用图像预处理
               const processedImageData = preprocessImage(processedCanvas, processedContext);
               
-              return await codeReader.decodeFromCanvas(processedCanvas);
+              return await codeReader.decode(processedCanvas);
             } catch (error) {
               console.log('❌ 预处理图像识别失败:', error.message);
               throw error;
@@ -699,7 +714,7 @@ export function useQRScanner() {
               console.log(`🔍 策略3: ${scale}x 尺度识别...`);
               try {
                 const scaledCanvas = createScaledCanvas(canvas, scale);
-                return await codeReader.decodeFromCanvas(scaledCanvas);
+                return await codeReader.decode(scaledCanvas);
               } catch (error) {
                 console.log(`❌ ${scale}x 尺度识别失败:`, error.message);
                 throw error;
@@ -730,7 +745,7 @@ export function useQRScanner() {
                 rotatedContext.rotate((angle * Math.PI) / 180);
                 rotatedContext.drawImage(canvas, -canvas.width / 2, -canvas.height / 2);
                 
-                return await codeReader.decodeFromCanvas(rotatedCanvas);
+                return await codeReader.decode(rotatedCanvas);
               } catch (error) {
                 console.log(`❌ ${angle}° 旋转识别失败:`, error.message);
                 throw error;
@@ -861,7 +876,7 @@ export function useQRScanner() {
               (async () => {
                 console.log('🔍 策略1: 原始图像识别...');
                 try {
-                  return await codeReader.decodeFromCanvas(tempCanvas);
+                  return await codeReader.decode(tempCanvas);
                 } catch (error) {
                   console.log('❌ 原始图像识别失败:', error.message);
                   throw error;
@@ -883,7 +898,7 @@ export function useQRScanner() {
                   // 应用图像预处理
                   preprocessImage(processedCanvas, processedContext);
                   
-                  return await codeReader.decodeFromCanvas(processedCanvas);
+                  return await codeReader.decode(processedCanvas);
                 } catch (error) {
                   console.log('❌ 预处理图像识别失败:', error.message);
                   throw error;
@@ -899,7 +914,7 @@ export function useQRScanner() {
                   console.log(`🔍 策略3: ${scale}x 尺度识别...`);
                   try {
                     const scaledCanvas = createScaledCanvas(tempCanvas, scale);
-                    return await codeReader.decodeFromCanvas(scaledCanvas);
+                    return await codeReader.decode(scaledCanvas);
                   } catch (error) {
                     console.log(`❌ ${scale}x 尺度识别失败:`, error.message);
                     throw error;
@@ -930,7 +945,7 @@ export function useQRScanner() {
                     rotatedContext.rotate((angle * Math.PI) / 180);
                     rotatedContext.drawImage(tempCanvas, -tempCanvas.width / 2, -tempCanvas.height / 2);
                     
-                    return await codeReader.decodeFromCanvas(rotatedCanvas);
+                    return await codeReader.decode(rotatedCanvas);
                   } catch (error) {
                     console.log(`❌ ${angle}° 旋转识别失败:`, error.message);
                     throw error;
@@ -958,7 +973,7 @@ export function useQRScanner() {
                     // 再进行缩放
                     const scaledCanvas = createScaledCanvas(processedCanvas, scale);
                     
-                    return await codeReader.decodeFromCanvas(scaledCanvas);
+                    return await codeReader.decode(scaledCanvas);
                   } catch (error) {
                     console.log(`❌ 预处理+${scale}x缩放识别失败:`, error.message);
                     throw error;
