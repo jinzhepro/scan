@@ -200,6 +200,49 @@ export default function ScannerPage() {
   };
 
   /**
+   * 处理商品出库
+   * 将商品库存减1
+   */
+  const handleOutbound = async () => {
+    if (!productInfo || productInfo.stock <= 0) {
+      alert("库存不足，无法出库");
+      return;
+    }
+
+    try {
+      console.log("📦 Processing outbound for product:", productInfo.id);
+
+      const response = await fetch(`/api/products/${productInfo.id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          stock: productInfo.stock - 1,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        console.log("✅ Outbound successful:", data);
+        // 更新本地商品信息
+        setProductInfo((prev) => ({
+          ...prev,
+          stock: prev.stock - 1,
+        }));
+        alert("出库成功！库存已更新");
+      } else {
+        console.error("❌ Outbound failed:", data);
+        alert("出库失败：" + (data.error || "未知错误"));
+      }
+    } catch (error) {
+      console.error("❌ Outbound error:", error);
+      alert("出库失败：网络错误");
+    }
+  };
+
+  /**
    * 开始编辑扫描结果
    */
   const handleStartEdit = () => {
@@ -389,7 +432,7 @@ export default function ScannerPage() {
                   </span>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4 text-sm">
+                <div className="grid grid-cols-2 gap-4 text-sm mb-4">
                   <div>
                     <span className="text-gray-600">条形码:</span>
                     <p className="font-mono text-gray-900">
@@ -405,15 +448,32 @@ export default function ScannerPage() {
                   {productInfo.stock !== null && (
                     <div>
                       <span className="text-gray-600">库存:</span>
-                      <p className="text-gray-900">{productInfo.stock}</p>
+                      <p className={`font-semibold ${productInfo.stock > 0 ? 'text-gray-900' : 'text-red-600'}`}>
+                        {productInfo.stock}
+                      </p>
                     </div>
                   )}
                   {productInfo.expiry_date && (
                     <div>
                       <span className="text-gray-600">有效期:</span>
-                      <p className="text-gray-900">{new Date(productInfo.expiry_date).toLocaleDateString('zh-CN')}</p>
+                      <p className="text-gray-900">{productInfo.expiry_date}</p>
                     </div>
                   )}
+                </div>
+
+                {/* 出库按钮 */}
+                <div className="flex justify-end">
+                  <button
+                    onClick={handleOutbound}
+                    disabled={!productInfo.stock || productInfo.stock <= 0}
+                    className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors ${
+                      productInfo.stock > 0
+                        ? 'bg-red-500 hover:bg-red-600 text-white'
+                        : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    }`}
+                  >
+                    📦 出库 (-1)
+                  </button>
                 </div>
               </div>
             ) : (
