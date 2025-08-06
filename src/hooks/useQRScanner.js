@@ -556,6 +556,95 @@ export function useQRScanner() {
   }, [isScanning, stopScanning, isAndroid, isLowEndDevice]);
 
   /**
+   * 拍照扫描功能
+   */
+  const capturePhoto = useCallback(async () => {
+    if (!videoRef.current || !canvasRef.current || !isScanning) {
+      console.warn('⚠️ 拍照失败：摄像头未启动或组件未准备就绪');
+      toast.error('请先启动摄像头');
+      return;
+    }
+
+    try {
+      console.log('📸 开始拍照扫描...');
+      
+      const video = videoRef.current;
+      const canvas = canvasRef.current;
+      const context = canvas.getContext('2d');
+
+      if (video.readyState !== video.HAVE_ENOUGH_DATA) {
+        console.warn('⚠️ 视频未准备就绪');
+        toast.error('摄像头画面未准备就绪，请稍后再试');
+        return;
+      }
+
+      // 设置画布尺寸为视频尺寸
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      
+      // 拍照：将当前视频帧绘制到画布
+      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+      
+      console.log('📸 拍照完成，开始识别条形码...');
+      
+      // 获取图像数据
+      const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+      
+      // 使用 ZXing 识别条形码
+      const codeReader = new BrowserMultiFormatReader();
+      
+      try {
+        // 从拍照的画布识别条形码
+        const result = await codeReader.decodeFromCanvas(canvas);
+        
+        console.log('🎉 拍照扫描成功!', {
+          text: result.getText(),
+          format: result.getBarcodeFormat().toString()
+        });
+        
+        const scanResult = {
+          data: result.getText(),
+          timestamp: Date.now(),
+          type: result.getBarcodeFormat().toString()
+        };
+        
+        setScanResult(scanResult);
+        
+        // 显示拍照扫描成功的 toast
+        toast.success('拍照扫描成功！', {
+          description: `格式: ${result.getBarcodeFormat()} | 内容: ${result.getText().length > 30 ? result.getText().substring(0, 30) + '...' : result.getText()}`,
+          duration: 3000,
+        });
+        
+        // 可选：停止扫描或继续实时扫描
+        // stopScanning();
+        
+      } catch (err) {
+        console.warn('❌ 拍照扫描失败:', err);
+        
+        if (err instanceof NotFoundException) {
+          toast.error('未识别到条形码', {
+            description: '请确保条形码清晰可见并重新拍照',
+            duration: 3000,
+          });
+        } else {
+          toast.error('拍照扫描失败', {
+            description: '请重新尝试拍照扫描',
+            duration: 3000,
+          });
+        }
+      }
+      
+    } catch (error) {
+      console.error('❌ 拍照过程出错:', error);
+      toast.error('拍照失败', {
+        description: '请检查摄像头权限并重试',
+        duration: 3000,
+      });
+    }
+  }, [isScanning, stopScanning]);
+
+  /**
    * 重新扫描
    */
   const resetScan = useCallback(() => {
@@ -581,6 +670,7 @@ export function useQRScanner() {
     canvasRef,
     startScanning,
     stopScanning,
-    resetScan
+    resetScan,
+    capturePhoto
   };
 }
