@@ -236,10 +236,16 @@ export default function ScannerPage() {
           <div className="bg-white rounded-lg shadow-lg p-4 relative">
             <video
               ref={videoRef}
-              width="640"
-              height="480"
+              width="480"
+              height="360"
               className="border border-gray-300 rounded"
-              style={{ objectFit: "cover" }}
+              style={{ 
+                objectFit: "cover",
+                width: "480px",
+                height: "360px",
+                maxWidth: "480px",
+                maxHeight: "360px"
+              }}
             />
 
             {/* 扫描统计信息 */}
