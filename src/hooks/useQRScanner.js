@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useCallback, useEffect } from 'react';
+import { toast } from 'sonner';
 import jsQR from 'jsqr';
 
 /**
@@ -92,6 +93,12 @@ export function useQRScanner() {
         errorMessage = err.message;
       }
       
+      // 使用 Sonner toast 显示错误消息
+      toast.error(errorMessage, {
+        description: '请检查设备权限和网络环境',
+        duration: 5000,
+      });
+      
       setError(errorMessage);
       setIsLoading(false);
     }
@@ -142,11 +149,20 @@ export function useQRScanner() {
       const code = jsQR(imageData.data, imageData.width, imageData.height);
       
       if (code) {
-        setScanResult({
+        const result = {
           data: code.data,
           location: code.location,
           timestamp: Date.now()
+        };
+        
+        setScanResult(result);
+        
+        // 显示扫描成功的 toast
+        toast.success('扫描成功！', {
+          description: `识别到内容: ${code.data.length > 50 ? code.data.substring(0, 50) + '...' : code.data}`,
+          duration: 3000,
         });
+        
         stopScanning();
         return;
       }

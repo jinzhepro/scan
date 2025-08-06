@@ -1,5 +1,6 @@
 'use client';
 
+import { toast } from 'sonner';
 import { useQRScanner } from '@/hooks/useQRScanner';
 
 /**
@@ -40,7 +41,7 @@ export default function QRScanner() {
             继续扫描
           </button>
           <button
-            onClick={() => navigator.clipboard?.writeText(scanResult.data)}
+            onClick={() => copyToClipboard(scanResult.data)}
             className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors"
           >
             复制内容
@@ -51,23 +52,20 @@ export default function QRScanner() {
   };
 
   /**
-   * 渲染错误信息
+   * 复制扫描结果到剪贴板
    */
-  const renderError = () => {
-    if (!error) return null;
-
-    return (
-      <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
-        <h3 className="text-lg font-semibold text-red-800 mb-2">扫描失败</h3>
-        <p className="text-red-700">{error}</p>
-        <button
-          onClick={resetScan}
-          className="mt-3 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
-        >
-          重试
-        </button>
-      </div>
-    );
+  const copyToClipboard = async (text) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.success('已复制到剪贴板', {
+        duration: 2000,
+      });
+    } catch (err) {
+      toast.error('复制失败', {
+        description: '请手动复制内容',
+        duration: 3000,
+      });
+    }
   };
 
   /**
@@ -151,11 +149,8 @@ export default function QRScanner() {
       {/* 扫描结果 */}
       {renderScanResult()}
 
-      {/* 错误信息 */}
-      {renderError()}
-
       {/* 使用说明 */}
-      {!isScanning && !scanResult && !error && (
+      {!isScanning && !scanResult && (
         <div className="mt-8 p-4 bg-gray-50 rounded-lg">
           <h3 className="font-semibold text-gray-800 mb-2">使用说明：</h3>
           <ul className="text-sm text-gray-600 space-y-1">
