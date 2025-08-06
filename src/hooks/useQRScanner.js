@@ -111,6 +111,9 @@ export function useQRScanner() {
       if (videoRef.current && stream) {
         videoRef.current.srcObject = stream;
         
+        // 获取到摄像头流后立即显示预览区域
+        setIsScanning(true);
+        
         // iOS Safari 特殊属性设置
         videoRef.current.setAttribute('playsinline', true);
         videoRef.current.setAttribute('webkit-playsinline', true);
@@ -147,8 +150,10 @@ export function useQRScanner() {
         const handleVideoReady = () => {
           clearTimeout(loadingTimeout);
           setIsLoading(false);
-          setIsScanning(true);
-          scanQRCode();
+          // isScanning 已经在获取流后设置为 true，这里不需要重复设置
+          if (!animationRef.current) {
+            scanQRCode();
+          }
         };
 
         const handleVideoError = (error) => {
@@ -165,7 +170,7 @@ export function useQRScanner() {
         const handleCanPlay = () => {
           clearTimeout(loadingTimeout);
           setIsLoading(false);
-          setIsScanning(true);
+          // isScanning 已经在获取流后设置为 true，这里不需要重复设置
           if (!animationRef.current) {
             scanQRCode();
           }
@@ -180,10 +185,10 @@ export function useQRScanner() {
           // 尝试自动播放
           await videoRef.current.play();
           
-          // 播放成功后立即更新状态
+          // 播放成功后更新加载状态
           clearTimeout(loadingTimeout);
           setIsLoading(false);
-          setIsScanning(true);
+          // isScanning 已经在获取流后设置为 true，这里不需要重复设置
           
           // 如果是iOS设备，给用户一个提示
           if (isIOSDevice && isSafariBrowser) {
