@@ -1,9 +1,9 @@
-import { NextResponse } from 'next/server';
-import { 
-  getScanRecords, 
+import { NextResponse } from "next/server";
+import {
+  getScanRecords,
   getScanStatistics,
-  getPopularScannedProducts 
-} from '@/lib/scanRecords';
+  getPopularScannedProducts,
+} from "@/lib/scanRecords";
 
 /**
  * 获取扫描记录列表
@@ -12,13 +12,13 @@ import {
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
-    const limit = parseInt(searchParams.get('limit') || '50');
-    const offset = parseInt(searchParams.get('offset') || '0');
-    const includeStats = searchParams.get('stats') === 'true';
-    const includePopular = searchParams.get('popular') === 'true';
+    const limit = parseInt(searchParams.get("limit") || "50");
+    const offset = parseInt(searchParams.get("offset") || "0");
+    const includeStats = searchParams.get("stats") === "true";
+    const includePopular = searchParams.get("popular") === "true";
 
     const response = {
-      success: true
+      success: true,
     };
 
     // 获取扫描记录
@@ -40,12 +40,12 @@ export async function GET(request) {
 
     return NextResponse.json(response);
   } catch (error) {
-    console.error('获取扫描记录失败:', error);
+    console.error("获取扫描记录失败:", error);
     return NextResponse.json(
-      { 
-        success: false, 
-        error: '获取扫描记录失败',
-        message: error.message 
+      {
+        success: false,
+        error: "获取扫描记录失败",
+        message: error.message,
       },
       { status: 500 }
     );

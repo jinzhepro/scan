@@ -1,4 +1,4 @@
-import sql from './db.js';
+import sql from "./db.js";
 
 /**
  * 创建扫描记录
@@ -13,11 +13,11 @@ export async function createScanRecord(barcode, productId = null) {
       VALUES (${barcode}, ${productId})
       RETURNING *
     `;
-    
-    console.log('✅ 扫描记录创建成功:', result[0]);
+
+    console.log("✅ 扫描记录创建成功:", result[0]);
     return result[0];
   } catch (error) {
-    console.error('创建扫描记录失败:', error);
+    console.error("创建扫描记录失败:", error);
     throw error;
   }
 }
@@ -34,9 +34,7 @@ export async function getScanRecords(limit = 50, offset = 0) {
       SELECT 
         sr.*,
         p.name as product_name,
-        p.price as product_price,
-        p.category as product_category,
-        p.brand as product_brand
+        p.price as product_price
       FROM scan_records sr
       LEFT JOIN products p ON sr.product_id = p.id
       ORDER BY sr.scanned_at DESC
@@ -44,7 +42,7 @@ export async function getScanRecords(limit = 50, offset = 0) {
     `;
     return result;
   } catch (error) {
-    console.error('获取扫描记录失败:', error);
+    console.error("获取扫描记录失败:", error);
     throw error;
   }
 }
@@ -58,30 +56,31 @@ export async function getScanStatistics() {
     const [totalScans] = await sql`
       SELECT COUNT(*) as total FROM scan_records
     `;
-    
+
     const [todayScans] = await sql`
       SELECT COUNT(*) as today FROM scan_records
       WHERE DATE(scanned_at) = CURRENT_DATE
     `;
-    
+
     const [uniqueProducts] = await sql`
       SELECT COUNT(DISTINCT barcode) as unique_products FROM scan_records
     `;
-    
+
     const [knownProducts] = await sql`
       SELECT COUNT(*) as known FROM scan_records
       WHERE product_id IS NOT NULL
     `;
-    
+
     return {
       totalScans: parseInt(totalScans.total),
       todayScans: parseInt(todayScans.today),
       uniqueProducts: parseInt(uniqueProducts.unique_products),
       knownProducts: parseInt(knownProducts.known),
-      unknownProducts: parseInt(totalScans.total) - parseInt(knownProducts.known)
+      unknownProducts:
+        parseInt(totalScans.total) - parseInt(knownProducts.known),
     };
   } catch (error) {
-    console.error('获取扫描统计失败:', error);
+    console.error("获取扫描统计失败:", error);
     throw error;
   }
 }
@@ -97,9 +96,7 @@ export async function getScanHistoryByBarcode(barcode) {
       SELECT 
         sr.*,
         p.name as product_name,
-        p.price as product_price,
-        p.category as product_category,
-        p.brand as product_brand
+        p.price as product_price
       FROM scan_records sr
       LEFT JOIN products p ON sr.product_id = p.id
       WHERE sr.barcode = ${barcode}
@@ -107,7 +104,7 @@ export async function getScanHistoryByBarcode(barcode) {
     `;
     return result;
   } catch (error) {
-    console.error('获取扫描历史失败:', error);
+    console.error("获取扫描历史失败:", error);
     throw error;
   }
 }
@@ -124,14 +121,14 @@ export async function deleteScanRecord(id) {
       WHERE id = ${id}
       RETURNING id
     `;
-    
+
     const deleted = result.length > 0;
     if (deleted) {
-      console.log('✅ 扫描记录删除成功, ID:', id);
+      console.log("✅ 扫描记录删除成功, ID:", id);
     }
     return deleted;
   } catch (error) {
-    console.error('删除扫描记录失败:', error);
+    console.error("删除扫描记录失败:", error);
     throw error;
   }
 }
@@ -149,18 +146,16 @@ export async function getPopularScannedProducts(limit = 10) {
         COUNT(*) as scan_count,
         p.name as product_name,
         p.price as product_price,
-        p.category as product_category,
-        p.brand as product_brand,
         MAX(sr.scanned_at) as last_scanned
       FROM scan_records sr
       LEFT JOIN products p ON sr.product_id = p.id
-      GROUP BY sr.barcode, p.name, p.price, p.category, p.brand
+      GROUP BY sr.barcode, p.name, p.price
       ORDER BY scan_count DESC, last_scanned DESC
       LIMIT ${limit}
     `;
     return result;
   } catch (error) {
-    console.error('获取热门商品失败:', error);
+    console.error("获取热门商品失败:", error);
     throw error;
   }
 }

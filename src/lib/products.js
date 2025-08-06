@@ -1,4 +1,4 @@
-import sql from './db.js';
+import sql from "./db.js";
 
 /**
  * 根据条形码查找商品
@@ -14,7 +14,7 @@ export async function findProductByBarcode(barcode) {
     `;
     return result[0] || null;
   } catch (error) {
-    console.error('查找商品失败:', error);
+    console.error("查找商品失败:", error);
     throw error;
   }
 }
@@ -26,30 +26,21 @@ export async function findProductByBarcode(barcode) {
  */
 export async function createProduct(productData) {
   try {
-    const {
-      name,
-      barcode,
-      price,
-      description = '',
-      category = '',
-      brand = '',
-      stock = 0,
-      image_url = ''
-    } = productData;
+    const { name, barcode, price, stock = 0, expiry_date } = productData;
 
     const result = await sql`
       INSERT INTO products (
-        name, barcode, price, description, category, brand, stock, image_url
+        name, barcode, price, stock, expiry_date
       ) VALUES (
-        ${name}, ${barcode}, ${price}, ${description}, ${category}, ${brand}, ${stock}, ${image_url}
+        ${name}, ${barcode}, ${price}, ${stock}, ${expiry_date || null}
       )
       RETURNING *
     `;
-    
-    console.log('✅ 商品创建成功:', result[0]);
+
+    console.log("✅ 商品创建成功:", result[0]);
     return result[0];
   } catch (error) {
-    console.error('创建商品失败:', error);
+    console.error("创建商品失败:", error);
     throw error;
   }
 }
@@ -62,35 +53,24 @@ export async function createProduct(productData) {
  */
 export async function updateProduct(id, updateData) {
   try {
-    const {
-      name,
-      price,
-      description,
-      category,
-      brand,
-      stock,
-      image_url
-    } = updateData;
+    const { name, price, stock, expiry_date } = updateData;
 
     const result = await sql`
       UPDATE products 
       SET 
         name = COALESCE(${name}, name),
         price = COALESCE(${price}, price),
-        description = COALESCE(${description}, description),
-        category = COALESCE(${category}, category),
-        brand = COALESCE(${brand}, brand),
         stock = COALESCE(${stock}, stock),
-        image_url = COALESCE(${image_url}, image_url),
+        expiry_date = COALESCE(${expiry_date}, expiry_date),
         updated_at = CURRENT_TIMESTAMP
       WHERE id = ${id}
       RETURNING *
     `;
-    
-    console.log('✅ 商品更新成功:', result[0]);
+
+    console.log("✅ 商品更新成功:", result[0]);
     return result[0];
   } catch (error) {
-    console.error('更新商品失败:', error);
+    console.error("更新商品失败:", error);
     throw error;
   }
 }
@@ -107,14 +87,14 @@ export async function deleteProduct(id) {
       WHERE id = ${id}
       RETURNING id
     `;
-    
+
     const deleted = result.length > 0;
     if (deleted) {
-      console.log('✅ 商品删除成功, ID:', id);
+      console.log("✅ 商品删除成功, ID:", id);
     }
     return deleted;
   } catch (error) {
-    console.error('删除商品失败:', error);
+    console.error("删除商品失败:", error);
     throw error;
   }
 }
@@ -134,7 +114,7 @@ export async function getAllProducts(limit = 50, offset = 0) {
     `;
     return result;
   } catch (error) {
-    console.error('获取商品列表失败:', error);
+    console.error("获取商品列表失败:", error);
     throw error;
   }
 }
@@ -149,16 +129,53 @@ export async function searchProducts(keyword) {
     const result = await sql`
       SELECT * FROM products 
       WHERE 
-        name ILIKE ${'%' + keyword + '%'} OR
-        description ILIKE ${'%' + keyword + '%'} OR
-        category ILIKE ${'%' + keyword + '%'} OR
-        brand ILIKE ${'%' + keyword + '%'} OR
-        barcode ILIKE ${'%' + keyword + '%'}
+        name ILIKE ${"%" + keyword + "%"} OR
+        barcode ILIKE ${"%" + keyword + "%"}
       ORDER BY created_at DESC
     `;
     return result;
   } catch (error) {
-    console.error('搜索商品失败:', error);
+    console.error("搜索商品失败:", error);
+    throw error;
+  }
+}
+
+/**
+ * 获取即将过期的商品
+ * @param {number} days - 多少天内过期（默认7天）
+ * @returns {Array} 即将过期的商品列表
+ */
+export async function getExpiringProducts(days = 7) {
+  try {
+    const result = await sql`
+      SELECT * FROM products 
+      WHERE expiry_date IS NOT NULL 
+        AND expiry_date <= CURRENT_DATE + INTERVAL '${days} days'
+        AND expiry_date >= CURRENT_DATE
+      ORDER BY expiry_date ASC
+    `;
+    return result;
+  } catch (error) {
+    console.error("获取即将过期商品失败:", error);
+    throw error;
+  }
+}
+
+/**
+ * 获取已过期的商品
+ * @returns {Array} 已过期的商品列表
+ */
+export async function getExpiredProducts() {
+  try {
+    const result = await sql`
+      SELECT * FROM products 
+      WHERE expiry_date IS NOT NULL 
+        AND expiry_date < CURRENT_DATE
+      ORDER BY expiry_date DESC
+    `;
+    return result;
+  } catch (error) {
+    console.error("获取已过期商品失败:", error);
     throw error;
   }
 }
