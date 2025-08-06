@@ -1,7 +1,15 @@
 'use client';
 
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { BrowserMultiFormatReader, NotFoundException } from '@zxing/library';
+import { 
+  MultiFormatReader, 
+  BarcodeFormat, 
+  DecodeHintType, 
+  NotFoundException,
+  RGBLuminanceSource,
+  BinaryBitmap,
+  HybridBinarizer
+} from '@zxing/library';
 import { toast } from 'sonner';
 
 /**
@@ -18,6 +26,67 @@ export function useQRScanner() {
   const canvasRef = useRef(null);
   const streamRef = useRef(null);
   const animationRef = useRef(null);
+
+  /**
+   * 创建 ZXing 解码器实例
+   * @returns {MultiFormatReader} 配置好的解码器实例
+   */
+  const createDecoder = useCallback(() => {
+    const hints = new Map();
+    const formats = [
+      BarcodeFormat.QR_CODE,
+      BarcodeFormat.DATA_MATRIX,
+      BarcodeFormat.CODE_128,
+      BarcodeFormat.CODE_39,
+      BarcodeFormat.EAN_13,
+      BarcodeFormat.EAN_8,
+      BarcodeFormat.UPC_A,
+      BarcodeFormat.UPC_E,
+      BarcodeFormat.CODABAR,
+      BarcodeFormat.ITF,
+      BarcodeFormat.RSS_14,
+      BarcodeFormat.RSS_EXPANDED,
+      BarcodeFormat.AZTEC,
+      BarcodeFormat.PDF_417
+    ];
+    
+    hints.set(DecodeHintType.POSSIBLE_FORMATS, formats);
+    hints.set(DecodeHintType.TRY_HARDER, true);
+    
+    const reader = new MultiFormatReader();
+    reader.setHints(hints);
+    
+    return reader;
+  }, []);
+
+  /**
+   * 从 Canvas 解码条形码
+   * @param {HTMLCanvasElement} canvas - 包含图像的 Canvas 元素
+   * @returns {Promise<string>} 解码结果
+   */
+  const decodeFromCanvas = useCallback(async (canvas) => {
+    const reader = createDecoder();
+    const ctx = canvas.getContext('2d');
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    
+    // 将 ImageData 转换为字节数组
+    const data = imageData.data;
+    const rgbArray = new Uint8ClampedArray(canvas.width * canvas.height * 3);
+    
+    for (let i = 0, j = 0; i < data.length; i += 4, j += 3) {
+      rgbArray[j] = data[i];     // R
+      rgbArray[j + 1] = data[i + 1]; // G
+      rgbArray[j + 2] = data[i + 2]; // B
+    }
+    
+    // 创建 LuminanceSource 和 BinaryBitmap
+    const luminanceSource = new RGBLuminanceSource(rgbArray, canvas.width, canvas.height);
+    const binaryBitmap = new BinaryBitmap(new HybridBinarizer(luminanceSource));
+    
+    // 解码
+    const result = reader.decode(binaryBitmap);
+    return result.getText();
+  }, [createDecoder]);
 
   /**
    * 检测是否为iOS设备
@@ -398,7 +467,7 @@ export function useQRScanner() {
   /**
    * 扫描条形码
    */
-  const scanQRCode = useCallback(() => {
+  const scanQRCode = useCallback(async () => {
     if (!videoRef.current || !canvasRef.current || !isScanning) {
       return;
     }
@@ -442,97 +511,36 @@ export function useQRScanner() {
       // 将视频帧绘制到画布上
       context.drawImage(video, 0, 0, canvasWidth, canvasHeight);
       
-      // 获取图像数据
-      const imageData = context.getImageData(0, 0, canvasWidth, canvasHeight);
-      console.log('🖼️ 图像数据获取完成:', { 
-        width: imageData.width, 
-        height: imageData.height, 
-        dataLength: imageData.data.length 
-      });
-      
-      // 使用 ZXing 识别条形码
+      // 使用新的解码函数
       try {
         console.log('🔍 开始ZXing条形码识别...');
-        console.log('📚 ZXing库检查:', {
-          BrowserMultiFormatReader: typeof BrowserMultiFormatReader,
-          NotFoundException: typeof NotFoundException
+        
+        const resultText = await decodeFromCanvas(canvas);
+        
+        console.log('🎉 条形码识别成功!', {
+          text: resultText
         });
         
-        // 创建 BrowserMultiFormatReader 实例
-        const codeReader = new BrowserMultiFormatReader();
-        console.log('✅ BrowserMultiFormatReader 实例创建成功');
-        
-        // 尝试多种识别方式
-        const tryDecode = async () => {
-          try {
-            // 方式1: 从Canvas元素识别
-            console.log('🔍 尝试从Canvas识别...');
-            const result = await codeReader.decode(canvas);
-            return result;
-          } catch (canvasError) {
-            console.log('❌ Canvas识别失败:', canvasError.message);
-            
-            try {
-              // 方式2: 从ImageData识别
-              console.log('🔍 尝试从ImageData识别...');
-              // 创建临时canvas来处理ImageData
-              const tempCanvas = document.createElement('canvas');
-              const tempContext = tempCanvas.getContext('2d');
-              tempCanvas.width = canvas.width;
-              tempCanvas.height = canvas.height;
-              tempContext.putImageData(imageData, 0, 0);
-              
-              const result = await codeReader.decode(tempCanvas);
-              return result;
-            } catch (imageDataError) {
-              console.log('❌ ImageData识别失败:', imageDataError.message);
-              
-              try {
-                // 方式3: 从视频元素直接识别
-                console.log('🔍 尝试从视频元素识别...');
-                const result = await codeReader.decode(video);
-                return result;
-              } catch (videoError) {
-                console.log('❌ 视频元素识别失败:', videoError.message);
-                throw videoError;
-              }
-            }
-          }
+        const scanResult = {
+          data: resultText,
+          timestamp: Date.now(),
+          type: 'QR_CODE' // 默认类型，因为新函数只返回文本
         };
         
-        // 执行识别
-        tryDecode()
-          .then(result => {
-            console.log('🎉 条形码识别成功!', {
-              text: result.getText(),
-              format: result.getBarcodeFormat().toString(),
-              resultPoints: result.getResultPoints()
-            });
-            
-            const scanResult = {
-              data: result.getText(),
-              timestamp: Date.now(),
-              type: result.getBarcodeFormat().toString()
-            };
-            
-            setScanResult(scanResult);
-            
-            // 显示扫描成功的 toast
-            toast.success('条形码扫描成功！', {
-              description: `格式: ${result.getBarcodeFormat()} | 内容: ${result.getText().length > 30 ? result.getText().substring(0, 30) + '...' : result.getText()}`,
-              duration: 3000,
-            });
-            
-            stopScanning();
-          })
-          .catch(err => {
-            // ZXing 识别失败是正常的，不需要处理
-            if (!(err instanceof NotFoundException)) {
-              console.warn('⚠️ 条形码识别错误:', err);
-            }
-          });
+        setScanResult(scanResult);
+        
+        // 显示扫描成功的 toast
+        toast.success('条形码扫描成功！', {
+          description: `内容: ${resultText.length > 30 ? resultText.substring(0, 30) + '...' : resultText}`,
+          duration: 3000,
+        });
+        
+        stopScanning();
       } catch (err) {
-        console.warn('⚠️ 条形码识别初始化错误:', err);
+        // ZXing 识别失败是正常的，不需要处理
+        if (!(err instanceof NotFoundException)) {
+          console.warn('⚠️ 条形码识别错误:', err);
+        }
       }
     } else {
       console.log('⏳ 视频未准备就绪，readyState:', video.readyState);
@@ -560,7 +568,7 @@ export function useQRScanner() {
       // 其他设备：正常频率
       animationRef.current = requestAnimationFrame(scanQRCode);
     }
-  }, [isScanning, stopScanning, isAndroid, isLowEndDevice]);
+  }, [isScanning, stopScanning, isAndroid, isLowEndDevice, decodeFromCanvas]);
 
   /**
    * 重新扫描
@@ -651,21 +659,9 @@ export function useQRScanner() {
     
     console.log('📐 拍照尺寸:', { width: canvas.width, height: canvas.height });
     
-    // 使用 ZXing 识别条形码
+    // 使用新的解码方法识别条形码
     try {
       console.log('🔍 开始增强识别拍照图片中的条形码...');
-      
-      // 检查 ZXing 库是否正确加载
-      console.log('📚 ZXing库检查:', {
-        BrowserMultiFormatReader: typeof BrowserMultiFormatReader,
-        NotFoundException: typeof NotFoundException,
-        hasConstructor: typeof BrowserMultiFormatReader === 'function'
-      });
-
-      // 创建 BrowserMultiFormatReader 实例
-      const codeReader = new BrowserMultiFormatReader();
-      console.log('✅ BrowserMultiFormatReader 实例创建成功');
-      console.log('🔧 可用方法:', Object.getOwnPropertyNames(Object.getPrototypeOf(codeReader)));
       
       // 增强识别策略
       const enhancedDecode = async () => {
@@ -675,12 +671,12 @@ export function useQRScanner() {
         attempts.push(
           (async () => {
             console.log('🔍 策略1: 原始图像识别...');
-                try {
-                  return await codeReader.decode(canvas);
-                } catch (error) {
-                  console.log('❌ 原始图像识别失败:', error.message);
-                  throw error;
-                }
+            try {
+              return await decodeFromCanvas(canvas);
+            } catch (error) {
+              console.log('❌ 原始图像识别失败:', error.message);
+              throw error;
+            }
           })()
         );
         
@@ -696,9 +692,9 @@ export function useQRScanner() {
               processedContext.drawImage(canvas, 0, 0);
               
               // 应用图像预处理
-              const processedImageData = preprocessImage(processedCanvas, processedContext);
+              preprocessImage(processedCanvas, processedContext);
               
-              return await codeReader.decode(processedCanvas);
+              return await decodeFromCanvas(processedCanvas);
             } catch (error) {
               console.log('❌ 预处理图像识别失败:', error.message);
               throw error;
@@ -714,7 +710,7 @@ export function useQRScanner() {
               console.log(`🔍 策略3: ${scale}x 尺度识别...`);
               try {
                 const scaledCanvas = createScaledCanvas(canvas, scale);
-                return await codeReader.decode(scaledCanvas);
+                return await decodeFromCanvas(scaledCanvas);
               } catch (error) {
                 console.log(`❌ ${scale}x 尺度识别失败:`, error.message);
                 throw error;
@@ -745,7 +741,7 @@ export function useQRScanner() {
                 rotatedContext.rotate((angle * Math.PI) / 180);
                 rotatedContext.drawImage(canvas, -canvas.width / 2, -canvas.height / 2);
                 
-                return await codeReader.decode(rotatedCanvas);
+                return await decodeFromCanvas(rotatedCanvas);
               } catch (error) {
                 console.log(`❌ ${angle}° 旋转识别失败:`, error.message);
                 throw error;
@@ -756,8 +752,8 @@ export function useQRScanner() {
         
         // 并行执行所有识别策略，返回第一个成功的结果
         try {
-          const result = await Promise.any(attempts);
-          return result;
+          const resultText = await Promise.any(attempts);
+          return resultText;
         } catch (aggregateError) {
           // 所有策略都失败了
           console.log('❌ 所有识别策略都失败了');
@@ -767,17 +763,15 @@ export function useQRScanner() {
       
       // 执行增强识别
       enhancedDecode()
-        .then(result => {
+        .then(resultText => {
           console.log('🎉 拍照条形码识别成功!', {
-            text: result.getText(),
-            format: result.getBarcodeFormat().toString(),
-            resultPoints: result.getResultPoints()
+            text: resultText
           });
           
           const scanResult = {
-            data: result.getText(),
+            data: resultText,
             timestamp: Date.now(),
-            type: result.getBarcodeFormat().toString(),
+            type: 'BARCODE', // 通用类型
             method: 'capture' // 标记为拍照识别
           };
           
@@ -785,7 +779,7 @@ export function useQRScanner() {
           
           // 显示扫描成功的 toast
           toast.success('拍照识别成功！', {
-            description: `格式: ${result.getBarcodeFormat()} | 内容: ${result.getText().length > 30 ? result.getText().substring(0, 30) + '...' : result.getText()}`,
+            description: `内容: ${resultText.length > 30 ? resultText.substring(0, 30) + '...' : resultText}`,
             duration: 3000,
           });
           
@@ -807,7 +801,7 @@ export function useQRScanner() {
         duration: 3000,
       });
     }
-  }, [isScanning, stopScanning]);
+  }, [isScanning, stopScanning, decodeFromCanvas]);
 
   /**
    * 从文件上传识别条形码
@@ -860,12 +854,9 @@ export function useQRScanner() {
         // 获取图像数据
         const imageData = tempContext.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
         
-        // 使用 ZXing 识别条形码 - 增强版
+        // 使用新的解码方法识别条形码 - 增强版
         try {
           console.log('🔍 开始增强识别上传图片中的条形码...');
-          
-          // 创建 BrowserMultiFormatReader 实例
-          const codeReader = new BrowserMultiFormatReader();
           
           // 增强识别策略 (文件版本)
            const enhancedFileDecode = async () => {
@@ -876,7 +867,7 @@ export function useQRScanner() {
               (async () => {
                 console.log('🔍 策略1: 原始图像识别...');
                 try {
-                  return await codeReader.decode(tempCanvas);
+                  return await decodeFromCanvas(tempCanvas);
                 } catch (error) {
                   console.log('❌ 原始图像识别失败:', error.message);
                   throw error;
@@ -898,7 +889,7 @@ export function useQRScanner() {
                   // 应用图像预处理
                   preprocessImage(processedCanvas, processedContext);
                   
-                  return await codeReader.decode(processedCanvas);
+                  return await decodeFromCanvas(processedCanvas);
                 } catch (error) {
                   console.log('❌ 预处理图像识别失败:', error.message);
                   throw error;
@@ -914,7 +905,7 @@ export function useQRScanner() {
                   console.log(`🔍 策略3: ${scale}x 尺度识别...`);
                   try {
                     const scaledCanvas = createScaledCanvas(tempCanvas, scale);
-                    return await codeReader.decode(scaledCanvas);
+                    return await decodeFromCanvas(scaledCanvas);
                   } catch (error) {
                     console.log(`❌ ${scale}x 尺度识别失败:`, error.message);
                     throw error;
@@ -945,7 +936,7 @@ export function useQRScanner() {
                     rotatedContext.rotate((angle * Math.PI) / 180);
                     rotatedContext.drawImage(tempCanvas, -tempCanvas.width / 2, -tempCanvas.height / 2);
                     
-                    return await codeReader.decode(rotatedCanvas);
+                    return await decodeFromCanvas(rotatedCanvas);
                   } catch (error) {
                     console.log(`❌ ${angle}° 旋转识别失败:`, error.message);
                     throw error;
@@ -973,7 +964,7 @@ export function useQRScanner() {
                     // 再进行缩放
                     const scaledCanvas = createScaledCanvas(processedCanvas, scale);
                     
-                    return await codeReader.decode(scaledCanvas);
+                    return await decodeFromCanvas(scaledCanvas);
                   } catch (error) {
                     console.log(`❌ 预处理+${scale}x缩放识别失败:`, error.message);
                     throw error;
@@ -984,8 +975,8 @@ export function useQRScanner() {
             
             // 并行执行所有识别策略，返回第一个成功的结果
             try {
-              const result = await Promise.any(attempts);
-              return result;
+              const resultText = await Promise.any(attempts);
+              return resultText;
             } catch (aggregateError) {
               // 所有策略都失败了
               console.log('❌ 所有文件识别策略都失败了');
@@ -995,17 +986,15 @@ export function useQRScanner() {
           
           // 执行增强识别
            enhancedFileDecode()
-            .then(result => {
+            .then(resultText => {
               console.log('🎉 文件条形码识别成功!', {
-                text: result.getText(),
-                format: result.getBarcodeFormat().toString(),
-                resultPoints: result.getResultPoints()
+                text: resultText
               });
               
               const scanResult = {
-                data: result.getText(),
+                data: resultText,
                 timestamp: Date.now(),
-                type: result.getBarcodeFormat().toString(),
+                type: 'BARCODE', // 通用类型
                 method: 'file' // 标记为文件识别
               };
               
@@ -1013,7 +1002,7 @@ export function useQRScanner() {
               
               // 显示扫描成功的 toast
               toast.success('文件识别成功！', {
-                description: `格式: ${result.getBarcodeFormat()} | 内容: ${result.getText().length > 30 ? result.getText().substring(0, 30) + '...' : result.getText()}`,
+                description: `内容: ${resultText.length > 30 ? resultText.substring(0, 30) + '...' : resultText}`,
                 duration: 3000,
               });
             })
@@ -1054,7 +1043,7 @@ export function useQRScanner() {
     };
     
     reader.readAsDataURL(file);
-  }, []);
+  }, [decodeFromCanvas]);
 
   /**
    * 组件卸载时清理资源
