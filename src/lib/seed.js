@@ -838,12 +838,6 @@ const sampleProducts = [
     price: 50,
   },
   {
-    name: "进口马油洗护套盒",
-    stock: 4,
-    expiry_date: "2027.01",
-    price: 99,
-  },
-  {
     name: "花王洗衣液1520g42136（玫瑰香补充装）",
     barcode: "4901301421364",
     stock: 3,
@@ -1009,84 +1003,6 @@ const sampleProducts = [
     stock: 12,
     price: 9.9,
   },
-  {
-    name: "白花蛇草水330ml",
-    barcode: "1*12",
-    stock: 10,
-    price: 55.9,
-  },
-  {
-    name: "丝滑拿铁268ml",
-    barcode: "1*15",
-    stock: 5,
-    price: 63.9,
-  },
-  {
-    name: "可口可乐500ml",
-    barcode: "1*24",
-    stock: 5,
-    price: 57.8,
-  },
-  {
-    name: "可口可乐雪碧罐装330ml",
-    barcode: "1*24",
-    stock: 5,
-    price: 43.6,
-  },
-  {
-    name: "冰露550ml",
-    barcode: "1*24",
-    stock: 2,
-    price: 11.9,
-  },
-  {
-    name: "康师傅冰红茶500ml",
-    barcode: "1*15",
-    stock: 5,
-    price: 32.9,
-  },
-  {
-    name: "康师傅绿茶550ml",
-    barcode: "1*15",
-    stock: 5,
-    price: 32.9,
-  },
-  {
-    name: "康师傅茉莉蜜茶500ml",
-    barcode: "1*15",
-    stock: 5,
-    price: 32.9,
-  },
-  {
-    name: "脉动青柠口味600ml",
-    barcode: "1*15",
-    stock: 5,
-    price: 52.9,
-  },
-  {
-    name: "脉动水蜜桃口味600ml",
-    barcode: "1*15",
-    stock: 5,
-    price: 52.9,
-  },
-  {
-    name: "大姚嘉宾520ml",
-    barcode: "1*12",
-    stock: 5,
-    price: 44.9,
-  },
-  {
-    name: "大姚荔枝口味520ml",
-    barcode: "1*12",
-    stock: 5,
-    price: 44.9,
-  },
-  {
-    name: "娃哈哈纯净水596ml",
-    barcode: "1*24",
-    stock: 10,
-    price: 25.8,
-  },
 ];
 
 /**
@@ -1096,9 +1012,9 @@ export async function clearAllData() {
   try {
     console.log("🔄 正在清空数据库数据...");
 
-    // 清空扫描记录表
-    await sql`DELETE FROM scan_records`;
-    console.log("✅ 扫描记录表已清空");
+    // 清空出库记录表
+    await sql`DELETE FROM outbound_records`;
+    console.log("✅ 出库记录表已清空");
 
     // 清空商品表
     await sql`DELETE FROM products`;
@@ -1106,7 +1022,7 @@ export async function clearAllData() {
 
     // 重置自增序列
     await sql`ALTER SEQUENCE products_id_seq RESTART WITH 1`;
-    await sql`ALTER SEQUENCE scan_records_id_seq RESTART WITH 1`;
+    await sql`ALTER SEQUENCE outbound_records_id_seq RESTART WITH 1`;
     console.log("✅ 自增序列已重置");
 
     console.log("✅ 数据库数据清空完成");
@@ -1198,11 +1114,12 @@ export async function resetDatabase() {
 export async function getDatabaseStats() {
   try {
     const productStats = await sql`SELECT COUNT(*) as count FROM products`;
-    const scanStats = await sql`SELECT COUNT(*) as count FROM scan_records`;
+    const outboundStats =
+      await sql`SELECT COUNT(*) as count FROM outbound_records`;
 
     return {
       products: parseInt(productStats[0].count),
-      scanRecords: parseInt(scanStats[0].count),
+      outboundRecords: parseInt(outboundStats[0].count),
     };
   } catch (error) {
     console.error("❌ 获取数据库统计信息失败:", error);

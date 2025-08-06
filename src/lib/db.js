@@ -53,22 +53,23 @@ export async function createProductsTable() {
 }
 
 /**
- * 创建扫描记录表
+ * 创建出库记录表
  */
-export async function createScanRecordsTable() {
+export async function createOutboundRecordsTable() {
   try {
     await sql`
-      CREATE TABLE IF NOT EXISTS scan_records (
+      CREATE TABLE IF NOT EXISTS outbound_records (
         id SERIAL PRIMARY KEY,
         barcode VARCHAR(255) NOT NULL,
         product_id INTEGER REFERENCES products(id),
-        scanned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        quantity INTEGER DEFAULT 1,
+        outbound_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `;
-    console.log("✅ 扫描记录表创建成功");
+    console.log("✅ 出库记录表创建成功");
     return true;
   } catch (error) {
-    console.error("❌ 创建扫描记录表失败:", error);
+    console.error("❌ 创建出库记录表失败:", error);
     return false;
   }
 }
@@ -85,7 +86,7 @@ export async function initDatabase() {
   }
 
   await createProductsTable();
-  await createScanRecordsTable();
+  await createOutboundRecordsTable();
 
   console.log("✅ 数据库初始化完成");
 }

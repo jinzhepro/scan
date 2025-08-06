@@ -58,7 +58,7 @@ export default function InitDbPage() {
 
       if (data.success) {
         console.log("✅ Database initialized successfully");
-        setResult("数据库初始化成功！已创建商品表和扫描记录表。");
+        setResult("数据库初始化成功！已创建商品表和出库记录表。");
         // 刷新统计信息
         fetchStats();
       } else {
@@ -117,7 +117,7 @@ export default function InitDbPage() {
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-4">数据库管理</h1>
           <p className="text-gray-600">
-            初始化PostgreSQL数据库表结构，创建商品表和扫描记录表。
+            初始化PostgreSQL数据库表结构，创建商品表和出库记录表。
           </p>
         </div>
 
@@ -135,9 +135,9 @@ export default function InitDbPage() {
                 </p>
               </div>
               <div className="bg-white p-3 rounded border">
-                <span className="text-gray-600">扫描记录:</span>
+                <span className="text-gray-600">出库记录:</span>
                 <p className="text-2xl font-bold text-green-600">
-                  {stats.scanRecords}
+                  {stats.outboundRecords}
                 </p>
               </div>
             </div>
@@ -208,7 +208,7 @@ export default function InitDbPage() {
               添加15个示例商品（如果数据库为空）
             </p>
             <p>
-              • <strong>清空所有数据</strong>: 删除所有商品和扫描记录
+              • <strong>清空所有数据</strong>: 删除所有商品和出库记录
             </p>
             <p>
               • <strong>重置数据库</strong>: 清空数据并重新插入种子数据
@@ -306,10 +306,10 @@ export default function InitDbPage() {
               </div>
             </div>
 
-            {/* 扫描记录表 */}
+            {/* 出库记录表 */}
             <div>
               <h3 className="text-lg font-medium text-gray-900 mb-2">
-                扫描记录表 (scan_records)
+                出库记录表 (outbound_records)
               </h3>
               <div className="bg-gray-50 rounded p-3">
                 <ul className="text-sm text-gray-700 space-y-1">
@@ -317,13 +317,16 @@ export default function InitDbPage() {
                     <code>id</code> - 主键，自增
                   </li>
                   <li>
-                    <code>barcode</code> - 扫描的条形码
+                    <code>barcode</code> - 出库商品的条形码
                   </li>
                   <li>
                     <code>product_id</code> - 关联的商品ID（可为空）
                   </li>
                   <li>
-                    <code>scanned_at</code> - 扫描时间
+                    <code>quantity</code> - 出库数量
+                  </li>
+                  <li>
+                    <code>outbound_at</code> - 出库时间
                   </li>
                 </ul>
               </div>
