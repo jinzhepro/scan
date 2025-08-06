@@ -10,8 +10,6 @@ import { BrowserMultiFormatReader, NotFoundException } from "@zxing/library";
  */
 export default function ScannerPage() {
   // 状态管理
-  const [selectedDeviceId, setSelectedDeviceId] = useState("");
-  const [videoInputDevices, setVideoInputDevices] = useState([]);
   const [result, setResult] = useState("");
   const [isScanning, setIsScanning] = useState(false);
 
@@ -20,31 +18,15 @@ export default function ScannerPage() {
   const codeReaderRef = useRef(null);
 
   /**
-   * 初始化ZXing代码读取器和摄像头设备列表
+   * 组件初始化
+   * 创建代码读取器
    */
   useEffect(() => {
-    console.log('🚀 Initializing scanner component');
+    console.log('🚀 Initializing scanner component...');
     
     // 创建ZXing代码读取器实例
     codeReaderRef.current = new BrowserMultiFormatReader();
-    console.log('✅ ZXing code reader initialized');
-
-    // 获取可用的视频输入设备
-    codeReaderRef.current
-      .listVideoInputDevices()
-      .then((devices) => {
-        console.log('📹 Available video devices:', devices);
-        setVideoInputDevices(devices);
-        if (devices.length > 0) {
-          setSelectedDeviceId(devices[0].deviceId);
-          console.log('📱 Default device selected:', devices[0].deviceId);
-        } else {
-          console.warn('⚠️ No video devices found');
-        }
-      })
-      .catch((err) => {
-        console.error('❌ Error listing video devices:', err);
-      });
+    console.log('📖 ZXing code reader created:', codeReaderRef.current);
 
     // 组件卸载时清理资源
     return () => {
@@ -56,24 +38,23 @@ export default function ScannerPage() {
 
   /**
    * 开始扫描功能
-   * 使用选定的摄像头设备开始连续扫描
+   * 使用默认摄像头开始连续扫描
    */
   const handleStartScan = () => {
     console.log('🎯 Starting scan process...');
     
-    if (!selectedDeviceId || !videoRef.current) {
-      console.error('❌ Cannot start scan: missing deviceId or video element');
+    if (!videoRef.current) {
+      console.error('❌ Cannot start scan: missing video element');
       return;
     }
 
-    console.log('📷 Selected device ID:', selectedDeviceId);
     console.log('🎥 Video element:', videoRef.current);
 
     setIsScanning(true);
     setResult('');
 
     codeReaderRef.current.decodeFromVideoDevice(
-      selectedDeviceId,
+      undefined, // 使用默认摄像头
       videoRef.current,
       (result, err) => {
         if (result) {
@@ -88,7 +69,7 @@ export default function ScannerPage() {
       }
     );
 
-    console.log(`✅ Started continuous decode from camera with id ${selectedDeviceId}`);
+    console.log('✅ Started continuous decode from default camera');
   };
 
   /**
@@ -107,24 +88,7 @@ export default function ScannerPage() {
     console.log('🧹 UI state cleared');
   };
 
-  /**
-   * 处理摄像头设备切换
-   */
-  const handleDeviceChange = (event) => {
-    const newDeviceId = event.target.value;
-    console.log('🔄 Switching camera device from', selectedDeviceId, 'to', newDeviceId);
-    
-    setSelectedDeviceId(newDeviceId);
-    if (isScanning) {
-      console.log('⏸️ Stopping current scan to switch device');
-      // 如果正在扫描，重新开始扫描新设备
-      handleReset();
-      setTimeout(() => {
-        console.log('▶️ Restarting scan with new device');
-        handleStartScan();
-      }, 100);
-    }
-  };
+
 
   return (
     <div className="min-h-screen bg-gray-50 py-8">
@@ -136,7 +100,6 @@ export default function ScannerPage() {
           </h1>
           <p className="text-gray-600 max-w-2xl mx-auto">
             使用ZXing JavaScript库从设备摄像头扫描任何支持的1D/2D码。
-            如果有多个视频输入设备（例如前置和后置摄像头），可以选择不同的输入设备。
           </p>
         </div>
 
@@ -144,7 +107,7 @@ export default function ScannerPage() {
         <div className="flex justify-center gap-4 mb-6">
           <button
             onClick={handleStartScan}
-            disabled={!selectedDeviceId || isScanning}
+            disabled={isScanning}
             className="bg-blue-500 hover:bg-blue-600 disabled:bg-gray-400 text-white font-medium py-2 px-6 rounded-lg transition-colors"
           >
             {isScanning ? "扫描中..." : "开始扫描"}
@@ -170,29 +133,7 @@ export default function ScannerPage() {
           </div>
         </div>
 
-        {/* 摄像头选择器 */}
-        {videoInputDevices.length > 1 && (
-          <div className="max-w-md mx-auto mb-6">
-            <label
-              htmlFor="deviceSelect"
-              className="block text-sm font-medium text-gray-700 mb-2"
-            >
-              选择摄像头设备:
-            </label>
-            <select
-              id="deviceSelect"
-              value={selectedDeviceId}
-              onChange={handleDeviceChange}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            >
-              {videoInputDevices.map((device) => (
-                <option key={device.deviceId} value={device.deviceId}>
-                  {device.label || `摄像头 ${device.deviceId}`}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
+
 
         {/* 扫描结果显示 */}
         <div className="max-w-2xl mx-auto">
