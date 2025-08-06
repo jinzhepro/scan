@@ -514,11 +514,11 @@ export default function ScannerPage() {
           >
             重置
           </button>
-          <Link href="/init-db">
+          {/* <Link href="/init-db">
             <button className="bg-green-500 hover:bg-green-600 text-white font-medium py-2 px-6 rounded-lg transition-colors">
               初始化数据库
             </button>
-          </Link>
+          </Link> */}
         </div>
 
         {/* 扫描结果显示 */}
