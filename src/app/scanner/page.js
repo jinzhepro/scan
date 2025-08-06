@@ -174,9 +174,6 @@ export default function ScannerPage() {
             使用优化的ZXing JavaScript库从高分辨率摄像头扫描任何支持的1D/2D码。
             支持多种格式，采用高精度算法提升识别准确率。
           </p>
-          <div className="mt-4 text-sm text-blue-600">
-            💡 提示：将条码对准红色虚线框内，保持稳定以获得最佳扫描效果
-          </div>
         </div>
 
         {/* 控制按钮 */}
