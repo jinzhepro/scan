@@ -164,12 +164,24 @@ export default function QRScanner() {
     <div className="max-w-md mx-auto p-6">
       <div className="text-center">
         <h2 className="text-2xl font-bold text-gray-800 mb-4">二维码扫描器</h2>
+        
+        {/* 调试信息 */}
+        <div className="mb-4 p-2 bg-gray-100 rounded text-xs text-left">
+          <p><strong>调试状态:</strong></p>
+          <p>isScanning: {isScanning ? '✅' : '❌'}</p>
+          <p>isLoading: {isLoading ? '⏳' : '✅'}</p>
+          <p>scanResult: {scanResult ? '✅' : '❌'}</p>
+          <p>error: {error ? '❌' : '✅'}</p>
+        </div>
 
         {/* 开始扫描按钮 */}
         {!isScanning && !scanResult && (
           <div className="space-y-3">
             <button
-              onClick={startScanning}
+              onClick={() => {
+                console.log('🔘 用户点击了开始扫描按钮');
+                startScanning();
+              }}
               disabled={isLoading}
               className="px-8 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >

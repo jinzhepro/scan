@@ -39,23 +39,34 @@ export function useQRScanner() {
    */
   const startScanning = useCallback(async () => {
     try {
+      console.log('🎥 开始启动摄像头...');
       setIsLoading(true);
       setError(null);
       setScanResult(null);
 
       // 检查浏览器支持
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        console.error('❌ 浏览器不支持摄像头功能');
         throw new Error('您的浏览器不支持摄像头功能');
       }
+      console.log('✅ 浏览器支持摄像头功能');
 
       // 检查是否为 HTTPS 或 localhost
       const isSecureContext = window.isSecureContext || 
         window.location.hostname === 'localhost' || 
         window.location.hostname === '127.0.0.1';
       
+      console.log('🔒 安全上下文检查:', { 
+        isSecureContext, 
+        hostname: window.location.hostname,
+        protocol: window.location.protocol 
+      });
+      
       if (!isSecureContext) {
+        console.error('❌ 不是安全上下文');
         throw new Error('摄像头功能需要在 HTTPS 环境下使用，请使用 HTTPS 访问或在本地环境测试');
       }
+      console.log('✅ 安全上下文检查通过');
 
       // iOS Safari 特殊处理
       const isIOSDevice = isIOS();
@@ -82,11 +93,16 @@ export function useQRScanner() {
 
       let stream = null;
       
+      console.log('📱 设备检测:', { isIOSDevice, isSafariBrowser });
+      console.log('🎯 摄像头配置:', constraints);
+      
       try {
         // 首次尝试获取摄像头
+        console.log('🔄 首次尝试获取摄像头权限...');
         stream = await navigator.mediaDevices.getUserMedia(constraints);
+        console.log('✅ 首次摄像头权限获取成功');
       } catch (firstError) {
-        console.warn('首次摄像头请求失败，尝试简化配置:', firstError);
+        console.warn('⚠️ 首次摄像头请求失败，尝试简化配置:', firstError);
         
         // 如果失败，尝试最简单的配置
         const fallbackConstraints = {
@@ -94,24 +110,32 @@ export function useQRScanner() {
           audio: false
         };
         
+        console.log('🔄 尝试简化配置:', fallbackConstraints);
         try {
           stream = await navigator.mediaDevices.getUserMedia(fallbackConstraints);
+          console.log('✅ 简化配置摄像头权限获取成功');
         } catch (secondError) {
+          console.warn('⚠️ 简化配置也失败，尝试后置摄像头:', secondError);
           // 如果还是失败，尝试只请求后置摄像头
           const backCameraConstraints = {
             video: { facingMode: 'environment' },
             audio: false
           };
+          console.log('🔄 尝试后置摄像头配置:', backCameraConstraints);
           stream = await navigator.mediaDevices.getUserMedia(backCameraConstraints);
+          console.log('✅ 后置摄像头权限获取成功');
         }
       }
 
       streamRef.current = stream;
+      console.log('💾 摄像头流已保存到 streamRef');
       
       if (videoRef.current && stream) {
+        console.log('🎬 设置视频元素的摄像头流');
         videoRef.current.srcObject = stream;
         
         // 获取到摄像头流后立即显示预览区域
+        console.log('👁️ 设置 isScanning 为 true，显示预览区域');
         setIsScanning(true);
         
         // iOS Safari 特殊属性设置
