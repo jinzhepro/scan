@@ -564,7 +564,51 @@ export function useQRScanner() {
   }, []);
 
   /**
-   * 拍照并识别条形码
+   * 图像预处理函数 - 增强条形码识别效果
+   */
+  const preprocessImage = (canvas, context) => {
+    const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+    const data = imageData.data;
+    
+    // 转换为灰度图像并增强对比度
+    for (let i = 0; i < data.length; i += 4) {
+      // 计算灰度值
+      const gray = Math.round(0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2]);
+      
+      // 增强对比度 (简单的阈值处理)
+      const enhanced = gray > 128 ? 255 : 0;
+      
+      data[i] = enhanced;     // R
+      data[i + 1] = enhanced; // G
+      data[i + 2] = enhanced; // B
+      // data[i + 3] 保持不变 (Alpha)
+    }
+    
+    context.putImageData(imageData, 0, 0);
+    return imageData;
+  };
+
+  /**
+   * 创建不同尺寸的画布进行多尺度识别
+   */
+  const createScaledCanvas = (originalCanvas, scale) => {
+    const scaledCanvas = document.createElement('canvas');
+    const scaledContext = scaledCanvas.getContext('2d');
+    
+    scaledCanvas.width = originalCanvas.width * scale;
+    scaledCanvas.height = originalCanvas.height * scale;
+    
+    // 使用高质量缩放
+    scaledContext.imageSmoothingEnabled = true;
+    scaledContext.imageSmoothingQuality = 'high';
+    
+    scaledContext.drawImage(originalCanvas, 0, 0, scaledCanvas.width, scaledCanvas.height);
+    
+    return scaledCanvas;
+  };
+
+  /**
+   * 拍照并识别条形码 - 增强版
    */
   const captureAndScan = useCallback(() => {
     if (!videoRef.current || !canvasRef.current || !isScanning) {
@@ -600,45 +644,114 @@ export function useQRScanner() {
     
     console.log('📐 拍照尺寸:', { width: canvas.width, height: canvas.height });
     
-    // 获取图像数据
-    const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-    
     // 使用 ZXing 识别条形码
     try {
-      console.log('🔍 开始识别拍照图片中的条形码...');
-      console.log('📚 ZXing库检查:', {
-        BrowserMultiFormatReader: typeof BrowserMultiFormatReader,
-        NotFoundException: typeof NotFoundException
-      });
+      console.log('🔍 开始增强识别拍照图片中的条形码...');
       
       // 创建 BrowserMultiFormatReader 实例
       const codeReader = new BrowserMultiFormatReader();
       console.log('✅ BrowserMultiFormatReader 实例创建成功');
       
-      // 尝试多种识别方式
-      const tryDecode = async () => {
+      // 增强识别策略
+      const enhancedDecode = async () => {
+        const attempts = [];
+        
+        // 策略1: 原始图像识别
+        attempts.push(
+          (async () => {
+            console.log('🔍 策略1: 原始图像识别...');
+            try {
+              return await codeReader.decodeFromCanvas(canvas);
+            } catch (error) {
+              console.log('❌ 原始图像识别失败:', error.message);
+              throw error;
+            }
+          })()
+        );
+        
+        // 策略2: 预处理后识别
+        attempts.push(
+          (async () => {
+            console.log('🔍 策略2: 预处理图像识别...');
+            try {
+              const processedCanvas = document.createElement('canvas');
+              const processedContext = processedCanvas.getContext('2d');
+              processedCanvas.width = canvas.width;
+              processedCanvas.height = canvas.height;
+              processedContext.drawImage(canvas, 0, 0);
+              
+              // 应用图像预处理
+              const processedImageData = preprocessImage(processedCanvas, processedContext);
+              
+              return await codeReader.decodeFromCanvas(processedCanvas);
+            } catch (error) {
+              console.log('❌ 预处理图像识别失败:', error.message);
+              throw error;
+            }
+          })()
+        );
+        
+        // 策略3: 多尺度识别
+        const scales = [0.5, 1.5, 2.0];
+        scales.forEach(scale => {
+          attempts.push(
+            (async () => {
+              console.log(`🔍 策略3: ${scale}x 尺度识别...`);
+              try {
+                const scaledCanvas = createScaledCanvas(canvas, scale);
+                return await codeReader.decodeFromCanvas(scaledCanvas);
+              } catch (error) {
+                console.log(`❌ ${scale}x 尺度识别失败:`, error.message);
+                throw error;
+              }
+            })()
+          );
+        });
+        
+        // 策略4: 旋转角度识别
+        const rotations = [90, 180, 270];
+        rotations.forEach(angle => {
+          attempts.push(
+            (async () => {
+              console.log(`🔍 策略4: ${angle}° 旋转识别...`);
+              try {
+                const rotatedCanvas = document.createElement('canvas');
+                const rotatedContext = rotatedCanvas.getContext('2d');
+                
+                if (angle === 90 || angle === 270) {
+                  rotatedCanvas.width = canvas.height;
+                  rotatedCanvas.height = canvas.width;
+                } else {
+                  rotatedCanvas.width = canvas.width;
+                  rotatedCanvas.height = canvas.height;
+                }
+                
+                rotatedContext.translate(rotatedCanvas.width / 2, rotatedCanvas.height / 2);
+                rotatedContext.rotate((angle * Math.PI) / 180);
+                rotatedContext.drawImage(canvas, -canvas.width / 2, -canvas.height / 2);
+                
+                return await codeReader.decodeFromCanvas(rotatedCanvas);
+              } catch (error) {
+                console.log(`❌ ${angle}° 旋转识别失败:`, error.message);
+                throw error;
+              }
+            })()
+          );
+        });
+        
+        // 并行执行所有识别策略，返回第一个成功的结果
         try {
-          // 方式1: 从Canvas元素识别
-          console.log('🔍 尝试从Canvas识别...');
-          const result = await codeReader.decodeFromCanvas(canvas);
+          const result = await Promise.any(attempts);
           return result;
-        } catch (canvasError) {
-          console.log('❌ Canvas识别失败:', canvasError.message);
-          
-          try {
-            // 方式2: 从ImageData识别
-            console.log('🔍 尝试从ImageData识别...');
-            const result = await codeReader.decodeFromImageData(imageData);
-            return result;
-          } catch (imageDataError) {
-            console.log('❌ ImageData识别失败:', imageDataError.message);
-            throw imageDataError;
-          }
+        } catch (aggregateError) {
+          // 所有策略都失败了
+          console.log('❌ 所有识别策略都失败了');
+          throw new Error('所有识别策略都失败');
         }
       };
       
-      // 执行识别
-      tryDecode()
+      // 执行增强识别
+      enhancedDecode()
         .then(result => {
           console.log('🎉 拍照条形码识别成功!', {
             text: result.getText(),
@@ -666,14 +779,10 @@ export function useQRScanner() {
         })
         .catch(err => {
           console.log('❌ 拍照识别失败:', err.message);
-          // 识别失败提示用户
-          if (!(err instanceof NotFoundException)) {
-            console.warn('⚠️ 拍照条形码识别错误:', err);
-          }
           
           toast.error('拍照识别失败', {
-            description: '未在图片中找到条形码，请重新拍照或调整角度',
-            duration: 4000,
+            description: '尝试了多种识别策略仍未找到条形码，请确保条形码清晰完整并重新拍照',
+            duration: 5000,
           });
         });
     } catch (err) {
@@ -736,37 +845,141 @@ export function useQRScanner() {
         // 获取图像数据
         const imageData = tempContext.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
         
-        // 使用 ZXing 识别条形码
+        // 使用 ZXing 识别条形码 - 增强版
         try {
-          console.log('🔍 开始识别上传图片中的条形码...');
+          console.log('🔍 开始增强识别上传图片中的条形码...');
           
           // 创建 BrowserMultiFormatReader 实例
           const codeReader = new BrowserMultiFormatReader();
           
-          // 尝试多种识别方式
-          const tryDecode = async () => {
+          // 增强识别策略 (文件版本)
+           const enhancedFileDecode = async () => {
+            const attempts = [];
+            
+            // 策略1: 原始图像识别
+            attempts.push(
+              (async () => {
+                console.log('🔍 策略1: 原始图像识别...');
+                try {
+                  return await codeReader.decodeFromCanvas(tempCanvas);
+                } catch (error) {
+                  console.log('❌ 原始图像识别失败:', error.message);
+                  throw error;
+                }
+              })()
+            );
+            
+            // 策略2: 预处理后识别
+            attempts.push(
+              (async () => {
+                console.log('🔍 策略2: 预处理图像识别...');
+                try {
+                  const processedCanvas = document.createElement('canvas');
+                  const processedContext = processedCanvas.getContext('2d');
+                  processedCanvas.width = tempCanvas.width;
+                  processedCanvas.height = tempCanvas.height;
+                  processedContext.drawImage(tempCanvas, 0, 0);
+                  
+                  // 应用图像预处理
+                  preprocessImage(processedCanvas, processedContext);
+                  
+                  return await codeReader.decodeFromCanvas(processedCanvas);
+                } catch (error) {
+                  console.log('❌ 预处理图像识别失败:', error.message);
+                  throw error;
+                }
+              })()
+            );
+            
+            // 策略3: 多尺度识别
+            const scales = [0.5, 0.75, 1.25, 1.5, 2.0];
+            scales.forEach(scale => {
+              attempts.push(
+                (async () => {
+                  console.log(`🔍 策略3: ${scale}x 尺度识别...`);
+                  try {
+                    const scaledCanvas = createScaledCanvas(tempCanvas, scale);
+                    return await codeReader.decodeFromCanvas(scaledCanvas);
+                  } catch (error) {
+                    console.log(`❌ ${scale}x 尺度识别失败:`, error.message);
+                    throw error;
+                  }
+                })()
+              );
+            });
+            
+            // 策略4: 旋转角度识别
+            const rotations = [90, 180, 270];
+            rotations.forEach(angle => {
+              attempts.push(
+                (async () => {
+                  console.log(`🔍 策略4: ${angle}° 旋转识别...`);
+                  try {
+                    const rotatedCanvas = document.createElement('canvas');
+                    const rotatedContext = rotatedCanvas.getContext('2d');
+                    
+                    if (angle === 90 || angle === 270) {
+                      rotatedCanvas.width = tempCanvas.height;
+                      rotatedCanvas.height = tempCanvas.width;
+                    } else {
+                      rotatedCanvas.width = tempCanvas.width;
+                      rotatedCanvas.height = tempCanvas.height;
+                    }
+                    
+                    rotatedContext.translate(rotatedCanvas.width / 2, rotatedCanvas.height / 2);
+                    rotatedContext.rotate((angle * Math.PI) / 180);
+                    rotatedContext.drawImage(tempCanvas, -tempCanvas.width / 2, -tempCanvas.height / 2);
+                    
+                    return await codeReader.decodeFromCanvas(rotatedCanvas);
+                  } catch (error) {
+                    console.log(`❌ ${angle}° 旋转识别失败:`, error.message);
+                    throw error;
+                  }
+                })()
+              );
+            });
+            
+            // 策略5: 组合策略 (预处理 + 缩放)
+            const combinedScales = [0.75, 1.25, 1.5];
+            combinedScales.forEach(scale => {
+              attempts.push(
+                (async () => {
+                  console.log(`🔍 策略5: 预处理+${scale}x缩放识别...`);
+                  try {
+                    const processedCanvas = document.createElement('canvas');
+                    const processedContext = processedCanvas.getContext('2d');
+                    processedCanvas.width = tempCanvas.width;
+                    processedCanvas.height = tempCanvas.height;
+                    processedContext.drawImage(tempCanvas, 0, 0);
+                    
+                    // 应用图像预处理
+                    preprocessImage(processedCanvas, processedContext);
+                    
+                    // 再进行缩放
+                    const scaledCanvas = createScaledCanvas(processedCanvas, scale);
+                    
+                    return await codeReader.decodeFromCanvas(scaledCanvas);
+                  } catch (error) {
+                    console.log(`❌ 预处理+${scale}x缩放识别失败:`, error.message);
+                    throw error;
+                  }
+                })()
+              );
+            });
+            
+            // 并行执行所有识别策略，返回第一个成功的结果
             try {
-              // 方式1: 从Canvas元素识别
-              console.log('🔍 尝试从Canvas识别...');
-              const result = await codeReader.decodeFromCanvas(tempCanvas);
+              const result = await Promise.any(attempts);
               return result;
-            } catch (canvasError) {
-              console.log('❌ Canvas识别失败:', canvasError.message);
-              
-              try {
-                // 方式2: 从ImageData识别
-                console.log('🔍 尝试从ImageData识别...');
-                const result = await codeReader.decodeFromImageData(imageData);
-                return result;
-              } catch (imageDataError) {
-                console.log('❌ ImageData识别失败:', imageDataError.message);
-                throw imageDataError;
-              }
+            } catch (aggregateError) {
+              // 所有策略都失败了
+              console.log('❌ 所有文件识别策略都失败了');
+              throw new Error('所有识别策略都失败');
             }
           };
           
-          // 执行识别
-          tryDecode()
+          // 执行增强识别
+           enhancedFileDecode()
             .then(result => {
               console.log('🎉 文件条形码识别成功!', {
                 text: result.getText(),
@@ -791,14 +1004,10 @@ export function useQRScanner() {
             })
             .catch(err => {
               console.log('❌ 文件识别失败:', err.message);
-              // 识别失败提示用户
-              if (!(err instanceof NotFoundException)) {
-                console.warn('⚠️ 文件条形码识别错误:', err);
-              }
               
               toast.error('文件识别失败', {
-                description: '未在图片中找到条形码，请选择包含清晰条形码的图片',
-                duration: 4000,
+                description: '尝试了多种识别策略仍未找到条形码，请确保图片中包含清晰完整的条形码',
+                duration: 5000,
               });
             });
         } catch (err) {
