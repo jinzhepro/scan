@@ -8,7 +8,7 @@ import sql from "@/lib/db";
  */
 export async function GET(request, { params }) {
   try {
-    const { id } = params;
+    const { id } = await params;
 
     const result = await sql`
       SELECT * FROM products 
@@ -49,7 +49,7 @@ export async function GET(request, { params }) {
  */
 export async function PUT(request, { params }) {
   try {
-    const { id } = params;
+    const { id } = await params;
     
     // 验证商品ID
     if (!id || isNaN(parseInt(id))) {
@@ -119,7 +119,7 @@ export async function PUT(request, { params }) {
  */
 export async function DELETE(request, { params }) {
   try {
-    const { id } = params;
+    const { id } = await params;
 
     const deleted = await deleteProduct(parseInt(id));
 

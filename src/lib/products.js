@@ -65,17 +65,45 @@ export async function updateProduct(id, updateData) {
       throw new Error("库存不能为负数");
     }
 
-    const result = await sql`
+    // 构建动态更新字段，只包含非undefined的值
+    const updateFields = [];
+    const updateValues = [];
+
+    if (name !== undefined) {
+      updateFields.push('name = $' + (updateValues.length + 2)); // +2 因为id是第一个参数
+      updateValues.push(name);
+    }
+    if (price !== undefined) {
+      updateFields.push('price = $' + (updateValues.length + 2));
+      updateValues.push(price);
+    }
+    if (stock !== undefined) {
+      updateFields.push('stock = $' + (updateValues.length + 2));
+      updateValues.push(stock);
+    }
+    if (expiry_date !== undefined) {
+      updateFields.push('expiry_date = $' + (updateValues.length + 2));
+      updateValues.push(expiry_date);
+    }
+
+    // 如果没有要更新的字段，直接返回当前商品信息
+    if (updateFields.length === 0) {
+      const result = await sql`SELECT * FROM products WHERE id = ${id}`;
+      return result[0] || null;
+    }
+
+    // 添加updated_at字段
+    updateFields.push('updated_at = CURRENT_TIMESTAMP');
+
+    // 构建SQL查询
+    const query = `
       UPDATE products 
-      SET 
-        name = COALESCE(${name}, name),
-        price = COALESCE(${price}, price),
-        stock = COALESCE(${stock}, stock),
-        expiry_date = COALESCE(${expiry_date}, expiry_date),
-        updated_at = CURRENT_TIMESTAMP
-      WHERE id = ${id}
+      SET ${updateFields.join(', ')}
+      WHERE id = $1
       RETURNING *
     `;
+
+    const result = await sql.unsafe(query, [id, ...updateValues]);
 
     if (result.length === 0) {
       console.log("⚠️ 商品不存在, ID:", id);

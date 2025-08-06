@@ -8,7 +8,7 @@ import { createScanRecord } from "@/lib/scanRecords";
  */
 export async function GET(request, { params }) {
   try {
-    const { barcode } = params;
+    const { barcode } = await params;
 
     // 查找商品
     const product = await findProductByBarcode(barcode);
