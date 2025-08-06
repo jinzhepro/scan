@@ -428,73 +428,41 @@ export function useQRScanner() {
   }, []);
 
   /**
-   * 扫描条形码
+   * 扫描条形码 - 使用 video 元素直接解码
    */
   const scanQRCode = useCallback(async () => {
-    if (!videoRef.current || !canvasRef.current || !isScanning) {
+    if (!videoRef.current || !isScanning) {
       return;
     }
 
     const video = videoRef.current;
-    const canvas = canvasRef.current;
-    const context = canvas.getContext('2d');
 
     if (video.readyState === video.HAVE_ENOUGH_DATA) {
       console.log('🎥 视频准备就绪，开始扫描条形码');
       
-      // 根据设备性能调整画布尺寸
-      const isAndroidDevice = isAndroid();
-      const isLowEnd = isLowEndDevice();
-      
-      let canvasWidth = video.videoWidth;
-      let canvasHeight = video.videoHeight;
-      
-      console.log('📐 原始视频尺寸:', { width: canvasWidth, height: canvasHeight });
-      
-      // 安卓设备性能优化：降低处理分辨率
-      if (isAndroidDevice) {
-        if (isLowEnd) {
-          // 低端设备：大幅降低分辨率
-          const scale = Math.min(480 / canvasWidth, 360 / canvasHeight);
-          canvasWidth = Math.floor(canvasWidth * scale);
-          canvasHeight = Math.floor(canvasHeight * scale);
-        } else {
-          // 中端设备：适度降低分辨率
-          const scale = Math.min(640 / canvasWidth, 480 / canvasHeight);
-          canvasWidth = Math.floor(canvasWidth * scale);
-          canvasHeight = Math.floor(canvasHeight * scale);
-        }
-      }
-      
-      console.log('📐 处理后画布尺寸:', { width: canvasWidth, height: canvasHeight });
-      
-      canvas.width = canvasWidth;
-      canvas.height = canvasHeight;
-      
-      // 将视频帧绘制到画布上
-      context.drawImage(video, 0, 0, canvasWidth, canvasHeight);
-      
-      // 使用新的解码函数
+      // 使用 ZXing 的 decodeFromVideoDevice 方法直接从 video 元素解码
       try {
         console.log('🔍 开始ZXing条形码识别...');
         
-        const resultText = await decodeFromCanvas(canvas);
+        const decoder = createDecoder();
+        const result = await decoder.decodeFromVideoDevice(video);
         
         console.log('🎉 条形码识别成功!', {
-          text: resultText
+          text: result.text,
+          format: result.format
         });
         
         const scanResult = {
-          data: resultText,
+          data: result.text,
           timestamp: Date.now(),
-          type: 'QR_CODE' // 默认类型，因为新函数只返回文本
+          type: result.format || 'QR_CODE'
         };
         
         setScanResult(scanResult);
         
         // 显示扫描成功的 toast
         toast.success('条形码扫描成功！', {
-          description: `内容: ${resultText.length > 30 ? resultText.substring(0, 30) + '...' : resultText}`,
+          description: `内容: ${result.text.length > 30 ? result.text.substring(0, 30) + '...' : result.text}`,
           duration: 3000,
         });
         
@@ -531,7 +499,7 @@ export function useQRScanner() {
       // 其他设备：正常频率
       animationRef.current = requestAnimationFrame(scanQRCode);
     }
-  }, [isScanning, stopScanning, isAndroid, isLowEndDevice, decodeFromCanvas]);
+  }, [isScanning, stopScanning, isAndroid, isLowEndDevice, createDecoder]);
 
   /**
    * 重新扫描
