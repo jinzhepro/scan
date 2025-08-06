@@ -1,12 +1,11 @@
 "use client";
 
-import { useState } from "react";
 import { toast } from "sonner";
 import { useQRScanner } from "@/hooks/useQRScanner";
 
 /**
- * 摄像头条形码扫描组件
- * 提供全屏摄像头预览、实时扫描和拍照扫描功能
+ * 二维码扫描组件
+ * 提供摄像头预览和扫码结果显示
  */
 export default function QRScanner() {
   const {
@@ -19,10 +18,7 @@ export default function QRScanner() {
     startScanning,
     stopScanning,
     resetScan,
-    capturePhoto,
   } = useQRScanner();
-
-  const [showControls, setShowControls] = useState(true);
 
   /**
    * 检测是否为iOS设备
@@ -66,63 +62,37 @@ export default function QRScanner() {
   };
 
   /**
-   * 渲染扫描结果弹窗
+   * 渲染扫描结果
    */
   const renderScanResult = () => {
     if (!scanResult) return null;
 
     return (
-      <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-        <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 transform animate-in slide-in-from-bottom-4">
-          {/* 成功图标 */}
-          <div className="flex items-center justify-center w-16 h-16 bg-green-100 rounded-full mb-4 mx-auto">
-            <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-            </svg>
-          </div>
-
-          <h3 className="text-xl font-bold text-gray-800 text-center mb-2">
-            扫描成功！
-          </h3>
-          
-          <div className="text-center mb-4">
-            <span className="inline-block px-3 py-1 bg-green-100 text-green-800 text-sm rounded-full">
-              {scanResult.type} 条形码
-            </span>
-          </div>
-
-          {/* 扫描内容 */}
-          <div className="bg-gray-50 p-4 rounded-xl mb-6">
-            <p className="text-sm text-gray-600 mb-2">扫描内容：</p>
-            <p className="font-mono text-lg break-all text-gray-800 bg-white p-3 rounded-lg border">
-              {scanResult.data}
-            </p>
-          </div>
-
-          {/* 操作按钮 */}
-          <div className="flex gap-3">
-            <button
-              onClick={resetScan}
-              className="flex-1 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors font-semibold"
-            >
-              继续扫描
-            </button>
-            <button
-              onClick={() => copyToClipboard(scanResult.data)}
-              className="flex-1 py-3 bg-gray-600 text-white rounded-xl hover:bg-gray-700 transition-colors font-semibold"
-            >
-              复制内容
-            </button>
-          </div>
-
-          {/* 关闭按钮 */}
+      <div className="mt-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+        <h3 className="text-lg font-semibold text-green-800 mb-2">
+          扫描成功！
+        </h3>
+        <div className="mb-2">
+          <span className="inline-block px-2 py-1 bg-green-100 text-green-800 text-sm rounded">
+            条形码 ({scanResult.type})
+          </span>
+        </div>
+        <div className="bg-white p-3 rounded border">
+          <p className="text-sm text-gray-600 mb-1">扫描内容：</p>
+          <p className="font-mono text-sm break-all">{scanResult.data}</p>
+        </div>
+        <div className="mt-3 flex gap-2">
           <button
             onClick={resetScan}
-            className="absolute top-4 right-4 w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center hover:bg-gray-200 transition-colors"
+            className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
           >
-            <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
+            继续扫描
+          </button>
+          <button
+            onClick={() => copyToClipboard(scanResult.data)}
+            className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors"
+          >
+            复制内容
           </button>
         </div>
       </div>
@@ -130,240 +100,167 @@ export default function QRScanner() {
   };
 
   /**
-   * 渲染全屏摄像头预览
+   * 渲染摄像头预览
    */
   const renderCameraPreview = () => {
-    if (!isScanning) return null;
+    // if (!isScanning) return null;
 
     return (
-      <div className="fixed inset-0 bg-black z-50">
-        {/* 视频预览 - 全屏 */}
-        <video
-          ref={videoRef}
-          className="w-full h-full object-cover"
-          playsInline
-          muted
-          onClick={() => {
-            if (isIOS()) {
-              // iOS设备点击启动摄像头
-              if (videoRef.current && videoRef.current.paused) {
-                videoRef.current.play();
-              }
-            } else {
-              // 其他设备点击隐藏/显示控制界面
-              setShowControls(!showControls);
-            }
-          }}
-          title={isIOS() ? "点击启动摄像头" : "点击隐藏/显示控制"}
-        />
+      <div className="mt-6">
+        <div className="relative bg-black rounded-lg overflow-hidden">
+          {/* 视频预览 */}
+          <video
+            ref={videoRef}
+            className={`w-full h-64 object-cover ${
+              isIOS() ? "cursor-pointer" : ""
+            }`}
+            playsInline
+            muted
+            title={isIOS() ? "点击启动摄像头" : "摄像头预览"}
+          />
 
-        {/* 扫描框 */}
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <div className="w-64 h-64 md:w-80 md:h-80 border-2 border-white rounded-lg relative">
-            {/* 四个角的装饰 */}
-            <div className="absolute -top-1 -left-1 w-8 h-8 border-t-4 border-l-4 border-blue-400"></div>
-            <div className="absolute -top-1 -right-1 w-8 h-8 border-t-4 border-r-4 border-blue-400"></div>
-            <div className="absolute -bottom-1 -left-1 w-8 h-8 border-b-4 border-l-4 border-blue-400"></div>
-            <div className="absolute -bottom-1 -right-1 w-8 h-8 border-b-4 border-r-4 border-blue-400"></div>
+          {/* 扫描框 */}
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="w-48 h-48 border-2 border-blue-500 rounded-lg relative">
+              {/* 四个角的装饰 */}
+              <div className="absolute top-0 left-0 w-6 h-6 border-t-4 border-l-4 border-blue-500"></div>
+              <div className="absolute top-0 right-0 w-6 h-6 border-t-4 border-r-4 border-blue-500"></div>
+              <div className="absolute bottom-0 left-0 w-6 h-6 border-b-4 border-l-4 border-blue-500"></div>
+              <div className="absolute bottom-0 right-0 w-6 h-6 border-b-4 border-r-4 border-blue-500"></div>
 
-            {/* 扫描线动画 */}
-            <div className="absolute top-1/2 left-0 right-0 h-0.5 bg-blue-400 animate-pulse shadow-lg"></div>
-            
-            {/* 扫描提示 */}
-            <div className="absolute -bottom-12 left-1/2 transform -translate-x-1/2 text-white text-center">
-              <p className="text-sm bg-black bg-opacity-50 px-3 py-1 rounded-full">
-                将条形码对准扫描框
-              </p>
+              {/* 扫描线 */}
+              <div className="absolute top-1/2 left-0 right-0 h-0.5 bg-blue-500 animate-pulse"></div>
             </div>
           </div>
-        </div>
 
-        {/* 顶部控制栏 */}
-        {showControls && (
-          <div className="absolute top-0 left-0 right-0 bg-gradient-to-b from-black/70 to-transparent p-4 z-10">
-            <div className="flex items-center justify-between text-white">
-              <button
-                onClick={stopScanning}
-                className="flex items-center space-x-2 bg-black/50 px-4 py-2 rounded-full hover:bg-black/70 transition-colors"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-                <span>关闭</span>
-              </button>
-              
-              <div className="text-center">
-                <h2 className="text-lg font-semibold">条形码扫描</h2>
-                <p className="text-sm text-gray-300">实时扫描中...</p>
+          {/* 加载提示 */}
+          {isLoading && (
+            <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+              <div className="text-white text-center p-4">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white mx-auto mb-3"></div>
+                <p className="mb-2">正在启动摄像头...</p>
+                {isIOS() && (
+                  <p className="text-sm text-yellow-300">
+                    iOS设备可能需要手动点击启动
+                  </p>
+                )}
               </div>
-              
-              <div className="w-20"></div> {/* 占位符保持居中 */}
             </div>
-          </div>
-        )}
+          )}
 
-        {/* 底部控制栏 */}
-        {showControls && (
-          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-6 z-10">
-            <div className="flex items-center justify-center space-x-8">
-              {/* 拍照按钮 */}
-              <button
-                onClick={capturePhoto}
-                className="w-16 h-16 bg-white rounded-full flex items-center justify-center hover:bg-gray-200 transition-colors shadow-lg"
-                title="拍照扫描"
-              >
-                <svg className="w-8 h-8 text-gray-800" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
-              </button>
+          {/* iOS 特殊提示覆盖层 */}
+          {isScanning && !isLoading && isIOS() && (
+            <div className="absolute top-2 left-2 right-2 bg-black bg-opacity-70 text-white text-xs p-2 rounded">
+              💡 如果摄像头未显示画面，请点击视频区域
             </div>
-            
-            {/* 操作提示 */}
-            <div className="mt-4 text-center text-white">
-              <p className="text-sm text-gray-300">
-                点击拍照按钮进行拍照扫描，或保持稳定进行实时扫描
-              </p>
-              {isIOS() && (
-                <p className="text-xs text-yellow-300 mt-1">
-                  💡 iOS设备：如摄像头未显示，请点击屏幕启动
-                </p>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* 加载提示 */}
-        {isLoading && (
-          <div className="absolute inset-0 bg-black/80 flex items-center justify-center z-20">
-            <div className="text-white text-center p-6">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
-              <p className="text-lg mb-2">正在启动摄像头...</p>
-              {isIOS() && (
-                <p className="text-sm text-yellow-300">
-                  iOS设备可能需要手动点击启动
-                </p>
-              )}
-            </div>
-          </div>
-        )}
+          )}
+        </div>
 
         {/* 隐藏的画布用于图像处理 */}
         <canvas ref={canvasRef} className="hidden" />
+
+        {/* 停止按钮 */}
+        <div className="mt-4 text-center">
+          <button
+            onClick={stopScanning}
+            className="px-6 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
+          >
+            停止扫描
+          </button>
+        </div>
       </div>
     );
   };
 
   return (
-    <div className="w-full h-full">
-      {/* 摄像头预览 - 全屏 */}
-      {renderCameraPreview()}
+    <div className="max-w-2xl mx-auto">
+      <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-200">
+        <div className="text-center">
+          <div className="flex items-center justify-center w-16 h-16 bg-blue-100 rounded-lg mb-4 mx-auto">
+            <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M12 12h-4.01M12 12v4m6-4h.01M12 8h.01" />
+            </svg>
+          </div>
+          <h2 className="text-2xl font-bold text-gray-800 mb-2">条形码扫描器</h2>
+          <p className="text-gray-600 mb-6">将条形码对准扫描框进行识别</p>
 
-      {/* 扫描结果弹窗 */}
-      {renderScanResult()}
-
-      {/* 启动界面 */}
-      {!isScanning && !scanResult && (
-        <div className="min-h-screen bg-gradient-to-br from-blue-50 to-gray-100 flex items-center justify-center p-4">
-          <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8 text-center">
-            {/* 摄像头图标 */}
-            <div className="flex items-center justify-center w-20 h-20 bg-blue-100 rounded-full mb-6 mx-auto">
-              <svg className="w-10 h-10 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-              </svg>
-            </div>
-
-            <h2 className="text-2xl font-bold text-gray-800 mb-3">条形码扫描器</h2>
-            <p className="text-gray-600 mb-8">启动摄像头开始扫描条形码</p>
-
-            {/* 开始扫描按钮 */}
-            <button
-              onClick={() => {
-                console.log("🔘 用户点击了开始扫描按钮");
-                startScanning();
-              }}
-              disabled={isLoading}
-              className="w-full py-4 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-lg font-semibold mb-4"
-            >
-              {isLoading ? (
-                <div className="flex items-center justify-center">
-                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-3"></div>
-                  启动中...
-                </div>
-              ) : (
-                <div className="flex items-center justify-center">
-                  <svg className="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                  </svg>
-                  启动摄像头
-                </div>
-              )}
-            </button>
-
-            {/* 重试按钮 */}
-            {isLoading && (
+          {/* 开始扫描按钮 */}
+          {!isScanning && !scanResult && (
+            <div className="space-y-3">
               <button
                 onClick={() => {
-                  stopScanning();
-                  setTimeout(startScanning, 500);
+                  console.log("🔘 用户点击了开始扫描按钮");
+                  startScanning();
                 }}
-                className="w-full py-3 bg-gray-500 text-white rounded-xl hover:bg-gray-600 transition-colors text-sm"
+                disabled={isLoading}
+                className="px-8 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                重新尝试
+                {isLoading ? "启动中..." : "开始扫描"}
               </button>
-            )}
 
-            {/* 功能说明 */}
-            <div className="mt-8 text-left">
-              <h3 className="font-semibold text-gray-800 mb-3 text-center">功能特点</h3>
-              <div className="space-y-2 text-sm text-gray-600">
-                <div className="flex items-center">
-                  <svg className="w-4 h-4 text-green-500 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                  </svg>
-                  <span>实时扫描识别</span>
+              {/* 重试按钮 - 仅在加载状态下显示 */}
+              {isLoading && (
+                <div className="text-center">
+                  <p className="text-sm text-gray-600 mb-2">启动时间较长？</p>
+                  <button
+                    onClick={() => {
+                      stopScanning();
+                      setTimeout(startScanning, 500);
+                    }}
+                    className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 transition-colors text-sm"
+                  >
+                    重新尝试
+                  </button>
                 </div>
-                <div className="flex items-center">
-                  <svg className="w-4 h-4 text-green-500 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                  </svg>
-                  <span>拍照扫描功能</span>
-                </div>
-                <div className="flex items-center">
-                  <svg className="w-4 h-4 text-green-500 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                  </svg>
-                  <span>支持多种条形码格式</span>
-                </div>
-                <div className="flex items-center">
-                  <svg className="w-4 h-4 text-green-500 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                  </svg>
-                  <span>自动设备优化</span>
-                </div>
-              </div>
+              )}
             </div>
+          )}
+        </div>
+      </div>
 
-            {/* 设备特殊提示 */}
+      {/* 摄像头预览 */}
+      {renderCameraPreview()}
+
+      {/* 扫描结果 */}
+      {renderScanResult()}
+
+      {/* 使用说明 */}
+      {!isScanning && !scanResult && (
+        <div className="mt-8 p-4 bg-gray-50 rounded-lg">
+          <h3 className="font-semibold text-gray-800 mb-2">使用说明：</h3>
+          <ul className="text-sm text-gray-600 space-y-1">
+            <li>• 点击&ldquo;开始扫描&rdquo;按钮启动摄像头</li>
+            <li>• 将条形码对准摄像头扫描框内</li>
+            <li>• 保持适当距离，确保条形码清晰可见</li>
+            <li>• 支持多种格式：EAN、UPC、Code128、Code39等</li>
+            <li>• 扫描成功后会自动显示结果和格式类型</li>
             {isIOS() && (
-              <div className="mt-6 p-3 bg-orange-50 border border-orange-200 rounded-lg">
-                <p className="text-sm text-orange-700">
-                  <strong>iOS 用户提示：</strong><br />
-                  如摄像头未自动启动，请点击视频区域手动启动
-                </p>
-              </div>
+              <>
+                <li className="text-orange-600 font-medium">
+                  • iPhone/iPad 用户：如摄像头未启动，请点击视频区域
+                </li>
+                <li className="text-orange-600">
+                  • 建议使用 Safari 浏览器获得最佳体验
+                </li>
+                <li className="text-orange-600">
+                  • 请确保允许摄像头权限并在 HTTPS 环境下访问
+                </li>
+              </>
             )}
-            
             {isAndroid() && (
-              <div className="mt-6 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                <p className="text-sm text-blue-700">
-                  <strong>Android 用户：</strong><br />
-                  已自动优化性能设置，确保流畅扫描体验
-                </p>
-              </div>
+              <>
+                <li className="text-blue-600 font-medium">
+                  • Android 用户：已自动优化性能设置
+                </li>
+                <li className="text-blue-600">
+                  • 建议使用 Chrome 浏览器获得最佳体验
+                </li>
+                <li className="text-blue-600">
+                  • 如遇卡顿，系统会自动降低分辨率和帧率
+                </li>
+              </>
             )}
-          </div>
+          </ul>
         </div>
       )}
     </div>
