@@ -18,6 +18,8 @@ export default function QRScanner() {
     startScanning,
     stopScanning,
     resetScan,
+    captureAndScan,
+    scanFromFile,
   } = useQRScanner();
 
   /**
@@ -62,6 +64,19 @@ export default function QRScanner() {
   };
 
   /**
+   * 处理文件上传
+   */
+  const handleFileUpload = (event) => {
+    const file = event.target.files[0];
+    if (file) {
+      console.log("📁 用户选择了文件:", file.name);
+      scanFromFile(file);
+    }
+    // 清空input值，允许重复选择同一文件
+    event.target.value = '';
+  };
+
+  /**
    * 渲染扫描结果
    */
   const renderScanResult = () => {
@@ -72,10 +87,16 @@ export default function QRScanner() {
         <h3 className="text-lg font-semibold text-green-800 mb-2">
           扫描成功！
         </h3>
-        <div className="mb-2">
+        <div className="mb-2 flex gap-2 flex-wrap">
           <span className="inline-block px-2 py-1 bg-green-100 text-green-800 text-sm rounded">
             条形码 ({scanResult.type})
           </span>
+          {scanResult.method && (
+            <span className="inline-block px-2 py-1 bg-blue-100 text-blue-800 text-sm rounded">
+              {scanResult.method === 'capture' ? '拍照识别' : 
+               scanResult.method === 'file' ? '文件识别' : '实时扫描'}
+            </span>
+          )}
         </div>
         <div className="bg-white p-3 rounded border">
           <p className="text-sm text-gray-600 mb-1">扫描内容：</p>
@@ -159,14 +180,27 @@ export default function QRScanner() {
         {/* 隐藏的画布用于图像处理 */}
         <canvas ref={canvasRef} className="hidden" />
 
-        {/* 停止按钮 */}
-        <div className="mt-4 text-center">
-          <button
-            onClick={stopScanning}
-            className="px-6 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
-          >
-            停止扫描
-          </button>
+        {/* 控制按钮 */}
+        <div className="mt-4 text-center space-y-2">
+          <div className="flex gap-3 justify-center">
+            <button
+              onClick={captureAndScan}
+              disabled={isLoading || !isScanning}
+              className="px-6 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+              拍照识别
+            </button>
+            <button
+              onClick={stopScanning}
+              className="px-6 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
+            >
+              停止扫描
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -182,21 +216,51 @@ export default function QRScanner() {
             </svg>
           </div>
           <h2 className="text-2xl font-bold text-gray-800 mb-2">条形码扫描器</h2>
-          <p className="text-gray-600 mb-6">将条形码对准扫描框进行识别</p>
+          <p className="text-gray-600 mb-6">支持实时扫描、拍照识别和文件上传识别</p>
 
-          {/* 开始扫描按钮 */}
+          {/* 扫描模式选择 */}
           {!isScanning && !scanResult && (
-            <div className="space-y-3">
-              <button
-                onClick={() => {
-                  console.log("🔘 用户点击了开始扫描按钮");
-                  startScanning();
-                }}
-                disabled={isLoading}
-                className="px-8 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isLoading ? "启动中..." : "开始扫描"}
-              </button>
+            <div className="space-y-4">
+              {/* 实时扫描 */}
+              <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                <h3 className="font-semibold text-blue-800 mb-2 flex items-center gap-2">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  </svg>
+                  实时扫描
+                </h3>
+                <p className="text-sm text-blue-600 mb-3">启动摄像头进行实时条形码识别</p>
+                <button
+                  onClick={() => {
+                    console.log("🔘 用户点击了开始扫描按钮");
+                    startScanning();
+                  }}
+                  disabled={isLoading}
+                  className="w-full px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isLoading ? "启动中..." : "开始实时扫描"}
+                </button>
+              </div>
+
+              {/* 文件上传 */}
+              <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+                <h3 className="font-semibold text-green-800 mb-2 flex items-center gap-2">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                  </svg>
+                  上传图片识别
+                </h3>
+                <p className="text-sm text-green-600 mb-3">选择包含条形码的图片文件进行识别</p>
+                <label className="w-full px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors cursor-pointer inline-block text-center">
+                  选择图片文件
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleFileUpload}
+                    className="hidden"
+                  />
+                </label>
+              </div>
 
               {/* 重试按钮 - 仅在加载状态下显示 */}
               {isLoading && (
@@ -228,39 +292,62 @@ export default function QRScanner() {
       {!isScanning && !scanResult && (
         <div className="mt-8 p-4 bg-gray-50 rounded-lg">
           <h3 className="font-semibold text-gray-800 mb-2">使用说明：</h3>
-          <ul className="text-sm text-gray-600 space-y-1">
-            <li>• 点击&ldquo;开始扫描&rdquo;按钮启动摄像头</li>
-            <li>• 将条形码对准摄像头扫描框内</li>
-            <li>• 保持适当距离，确保条形码清晰可见</li>
-            <li>• 支持多种格式：EAN、UPC、Code128、Code39等</li>
-            <li>• 扫描成功后会自动显示结果和格式类型</li>
+          <div className="text-sm text-gray-600 space-y-3">
+            {/* 实时扫描说明 */}
+            <div>
+              <h4 className="font-medium text-blue-700 mb-1">📹 实时扫描模式：</h4>
+              <ul className="space-y-1 ml-4">
+                <li>• 点击&ldquo;开始实时扫描&rdquo;启动摄像头</li>
+                <li>• 将条形码对准摄像头扫描框内</li>
+                <li>• 保持适当距离，确保条形码清晰可见</li>
+                <li>• 可点击&ldquo;拍照识别&rdquo;按钮进行单次识别</li>
+              </ul>
+            </div>
+
+            {/* 文件上传说明 */}
+            <div>
+              <h4 className="font-medium text-green-700 mb-1">📁 文件上传模式：</h4>
+              <ul className="space-y-1 ml-4">
+                <li>• 点击&ldquo;选择图片文件&rdquo;上传包含条形码的图片</li>
+                <li>• 支持 JPG、PNG、GIF 等常见图片格式</li>
+                <li>• 确保图片中的条形码清晰可见</li>
+                <li>• 无需摄像头权限，适合批量处理</li>
+              </ul>
+            </div>
+
+            {/* 通用说明 */}
+            <div>
+              <h4 className="font-medium text-gray-700 mb-1">🔧 通用功能：</h4>
+              <ul className="space-y-1 ml-4">
+                <li>• 支持多种格式：EAN、UPC、Code128、Code39等</li>
+                <li>• 识别成功后会显示结果和格式类型</li>
+                <li>• 可复制识别结果到剪贴板</li>
+                <li>• 支持连续扫描多个条形码</li>
+              </ul>
+            </div>
+
+            {/* 设备特定说明 */}
             {isIOS() && (
-              <>
-                <li className="text-orange-600 font-medium">
-                  • iPhone/iPad 用户：如摄像头未启动，请点击视频区域
-                </li>
-                <li className="text-orange-600">
-                  • 建议使用 Safari 浏览器获得最佳体验
-                </li>
-                <li className="text-orange-600">
-                  • 请确保允许摄像头权限并在 HTTPS 环境下访问
-                </li>
-              </>
+              <div>
+                <h4 className="font-medium text-orange-600 mb-1">📱 iOS 设备提示：</h4>
+                <ul className="space-y-1 ml-4">
+                  <li>• 如摄像头未启动，请点击视频区域</li>
+                  <li>• 建议使用 Safari 浏览器获得最佳体验</li>
+                  <li>• 请确保允许摄像头权限并在 HTTPS 环境下访问</li>
+                </ul>
+              </div>
             )}
             {isAndroid() && (
-              <>
-                <li className="text-blue-600 font-medium">
-                  • Android 用户：已自动优化性能设置
-                </li>
-                <li className="text-blue-600">
-                  • 建议使用 Chrome 浏览器获得最佳体验
-                </li>
-                <li className="text-blue-600">
-                  • 如遇卡顿，系统会自动降低分辨率和帧率
-                </li>
-              </>
+              <div>
+                <h4 className="font-medium text-blue-600 mb-1">🤖 Android 设备提示：</h4>
+                <ul className="space-y-1 ml-4">
+                  <li>• 已自动优化性能设置</li>
+                  <li>• 建议使用 Chrome 浏览器获得最佳体验</li>
+                  <li>• 如遇卡顿，系统会自动降低分辨率和帧率</li>
+                </ul>
+              </div>
             )}
-          </ul>
+          </div>
         </div>
       )}
     </div>

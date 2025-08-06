@@ -564,6 +564,275 @@ export function useQRScanner() {
   }, []);
 
   /**
+   * 拍照并识别条形码
+   */
+  const captureAndScan = useCallback(() => {
+    if (!videoRef.current || !canvasRef.current || !isScanning) {
+      console.warn('⚠️ 拍照失败：视频或画布未准备就绪');
+      toast.error('拍照失败', {
+        description: '请确保摄像头已启动',
+        duration: 3000,
+      });
+      return;
+    }
+
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    const context = canvas.getContext('2d');
+
+    if (video.readyState !== video.HAVE_ENOUGH_DATA) {
+      console.warn('⚠️ 拍照失败：视频未准备就绪');
+      toast.error('拍照失败', {
+        description: '请等待摄像头完全启动',
+        duration: 3000,
+      });
+      return;
+    }
+
+    console.log('📸 开始拍照识别...');
+    
+    // 设置画布尺寸为视频尺寸
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    
+    // 将当前视频帧绘制到画布上
+    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+    
+    console.log('📐 拍照尺寸:', { width: canvas.width, height: canvas.height });
+    
+    // 获取图像数据
+    const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+    
+    // 使用 ZXing 识别条形码
+    try {
+      console.log('🔍 开始识别拍照图片中的条形码...');
+      console.log('📚 ZXing库检查:', {
+        BrowserMultiFormatReader: typeof BrowserMultiFormatReader,
+        NotFoundException: typeof NotFoundException
+      });
+      
+      // 创建 BrowserMultiFormatReader 实例
+      const codeReader = new BrowserMultiFormatReader();
+      console.log('✅ BrowserMultiFormatReader 实例创建成功');
+      
+      // 尝试多种识别方式
+      const tryDecode = async () => {
+        try {
+          // 方式1: 从Canvas元素识别
+          console.log('🔍 尝试从Canvas识别...');
+          const result = await codeReader.decodeFromCanvas(canvas);
+          return result;
+        } catch (canvasError) {
+          console.log('❌ Canvas识别失败:', canvasError.message);
+          
+          try {
+            // 方式2: 从ImageData识别
+            console.log('🔍 尝试从ImageData识别...');
+            const result = await codeReader.decodeFromImageData(imageData);
+            return result;
+          } catch (imageDataError) {
+            console.log('❌ ImageData识别失败:', imageDataError.message);
+            throw imageDataError;
+          }
+        }
+      };
+      
+      // 执行识别
+      tryDecode()
+        .then(result => {
+          console.log('🎉 拍照条形码识别成功!', {
+            text: result.getText(),
+            format: result.getBarcodeFormat().toString(),
+            resultPoints: result.getResultPoints()
+          });
+          
+          const scanResult = {
+            data: result.getText(),
+            timestamp: Date.now(),
+            type: result.getBarcodeFormat().toString(),
+            method: 'capture' // 标记为拍照识别
+          };
+          
+          setScanResult(scanResult);
+          
+          // 显示扫描成功的 toast
+          toast.success('拍照识别成功！', {
+            description: `格式: ${result.getBarcodeFormat()} | 内容: ${result.getText().length > 30 ? result.getText().substring(0, 30) + '...' : result.getText()}`,
+            duration: 3000,
+          });
+          
+          // 拍照识别成功后停止扫描
+          stopScanning();
+        })
+        .catch(err => {
+          console.log('❌ 拍照识别失败:', err.message);
+          // 识别失败提示用户
+          if (!(err instanceof NotFoundException)) {
+            console.warn('⚠️ 拍照条形码识别错误:', err);
+          }
+          
+          toast.error('拍照识别失败', {
+            description: '未在图片中找到条形码，请重新拍照或调整角度',
+            duration: 4000,
+          });
+        });
+    } catch (err) {
+      console.warn('⚠️ 拍照条形码识别初始化错误:', err);
+      toast.error('识别功能异常', {
+        description: '请重试或刷新页面',
+        duration: 3000,
+      });
+    }
+  }, [isScanning, stopScanning]);
+
+  /**
+   * 从文件上传识别条形码
+   */
+  const scanFromFile = useCallback((file) => {
+    if (!file) {
+      toast.error('请选择图片文件', {
+        duration: 3000,
+      });
+      return;
+    }
+
+    // 检查文件类型
+    if (!file.type.startsWith('image/')) {
+      toast.error('文件格式错误', {
+        description: '请选择图片文件（JPG、PNG等）',
+        duration: 3000,
+      });
+      return;
+    }
+
+    console.log('📁 开始从文件识别条形码...', {
+      fileName: file.name,
+      fileSize: file.size,
+      fileType: file.type
+    });
+
+    const reader = new FileReader();
+    
+    reader.onload = (e) => {
+      const img = new Image();
+      
+      img.onload = () => {
+        console.log('🖼️ 图片加载完成:', {
+          width: img.width,
+          height: img.height
+        });
+        
+        // 创建临时画布
+        const tempCanvas = document.createElement('canvas');
+        const tempContext = tempCanvas.getContext('2d');
+        
+        // 设置画布尺寸
+        tempCanvas.width = img.width;
+        tempCanvas.height = img.height;
+        
+        // 绘制图片到画布
+        tempContext.drawImage(img, 0, 0);
+        
+        // 获取图像数据
+        const imageData = tempContext.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
+        
+        // 使用 ZXing 识别条形码
+        try {
+          console.log('🔍 开始识别上传图片中的条形码...');
+          
+          // 创建 BrowserMultiFormatReader 实例
+          const codeReader = new BrowserMultiFormatReader();
+          
+          // 尝试多种识别方式
+          const tryDecode = async () => {
+            try {
+              // 方式1: 从Canvas元素识别
+              console.log('🔍 尝试从Canvas识别...');
+              const result = await codeReader.decodeFromCanvas(tempCanvas);
+              return result;
+            } catch (canvasError) {
+              console.log('❌ Canvas识别失败:', canvasError.message);
+              
+              try {
+                // 方式2: 从ImageData识别
+                console.log('🔍 尝试从ImageData识别...');
+                const result = await codeReader.decodeFromImageData(imageData);
+                return result;
+              } catch (imageDataError) {
+                console.log('❌ ImageData识别失败:', imageDataError.message);
+                throw imageDataError;
+              }
+            }
+          };
+          
+          // 执行识别
+          tryDecode()
+            .then(result => {
+              console.log('🎉 文件条形码识别成功!', {
+                text: result.getText(),
+                format: result.getBarcodeFormat().toString(),
+                resultPoints: result.getResultPoints()
+              });
+              
+              const scanResult = {
+                data: result.getText(),
+                timestamp: Date.now(),
+                type: result.getBarcodeFormat().toString(),
+                method: 'file' // 标记为文件识别
+              };
+              
+              setScanResult(scanResult);
+              
+              // 显示扫描成功的 toast
+              toast.success('文件识别成功！', {
+                description: `格式: ${result.getBarcodeFormat()} | 内容: ${result.getText().length > 30 ? result.getText().substring(0, 30) + '...' : result.getText()}`,
+                duration: 3000,
+              });
+            })
+            .catch(err => {
+              console.log('❌ 文件识别失败:', err.message);
+              // 识别失败提示用户
+              if (!(err instanceof NotFoundException)) {
+                console.warn('⚠️ 文件条形码识别错误:', err);
+              }
+              
+              toast.error('文件识别失败', {
+                description: '未在图片中找到条形码，请选择包含清晰条形码的图片',
+                duration: 4000,
+              });
+            });
+        } catch (err) {
+          console.warn('⚠️ 文件条形码识别初始化错误:', err);
+          toast.error('识别功能异常', {
+            description: '请重试或刷新页面',
+            duration: 3000,
+          });
+        }
+      };
+      
+      img.onerror = () => {
+        console.error('❌ 图片加载失败');
+        toast.error('图片加载失败', {
+          description: '请检查图片文件是否损坏',
+          duration: 3000,
+        });
+      };
+      
+      img.src = e.target.result;
+    };
+    
+    reader.onerror = () => {
+      console.error('❌ 文件读取失败');
+      toast.error('文件读取失败', {
+        description: '请重新选择文件',
+        duration: 3000,
+      });
+    };
+    
+    reader.readAsDataURL(file);
+  }, []);
+
+  /**
    * 组件卸载时清理资源
    */
   useEffect(() => {
@@ -581,6 +850,8 @@ export function useQRScanner() {
     canvasRef,
     startScanning,
     stopScanning,
-    resetScan
+    resetScan,
+    captureAndScan,
+    scanFromFile
   };
 }
