@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useRef, useCallback, useEffect } from 'react';
-import jsQR from 'jsqr';
 import { BrowserMultiFormatReader, NotFoundException } from '@zxing/library';
 import { toast } from 'sonner';
 
@@ -397,7 +396,7 @@ export function useQRScanner() {
   }, []);
 
   /**
-   * 扫描二维码和条形码
+   * 扫描条形码
    */
   const scanQRCode = useCallback(() => {
     if (!videoRef.current || !canvasRef.current || !isScanning) {
@@ -440,30 +439,7 @@ export function useQRScanner() {
       // 获取图像数据
       const imageData = context.getImageData(0, 0, canvasWidth, canvasHeight);
       
-      // 首先尝试使用 jsQR 识别二维码（速度更快）
-      const qrCode = jsQR(imageData.data, imageData.width, imageData.height);
-      
-      if (qrCode) {
-        const result = {
-          data: qrCode.data,
-          location: qrCode.location,
-          timestamp: Date.now(),
-          type: 'QR_CODE'
-        };
-        
-        setScanResult(result);
-        
-        // 显示扫描成功的 toast
-        toast.success('二维码扫描成功！', {
-          description: `识别到内容: ${qrCode.data.length > 50 ? qrCode.data.substring(0, 50) + '...' : qrCode.data}`,
-          duration: 3000,
-        });
-        
-        stopScanning();
-        return;
-      }
-      
-      // 如果没有识别到二维码，尝试使用 ZXing 识别条形码
+      // 使用 ZXing 识别条形码
       try {
         const codeReader = new BrowserMultiFormatReader();
         
