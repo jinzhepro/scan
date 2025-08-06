@@ -233,18 +233,15 @@ export default function ScannerPage() {
 
         {/* 视频预览区域 */}
         <div className="flex justify-center mb-6">
-          <div className="bg-white rounded-lg shadow-lg p-4 relative">
+          <div className="bg-white rounded-lg shadow-lg p-4 relative w-full max-w-lg">
             <video
               ref={videoRef}
-              width="480"
-              height="360"
-              className="border border-gray-300 rounded"
-              style={{ 
+              className="border border-gray-300 rounded w-full"
+              style={{
                 objectFit: "cover",
-                width: "480px",
-                height: "360px",
-                maxWidth: "480px",
-                maxHeight: "360px"
+                aspectRatio: "4/3",
+                maxWidth: "100%",
+                height: "auto",
               }}
             />
 
