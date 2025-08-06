@@ -192,17 +192,40 @@ export default function ScannerPage() {
             {/* 扫描提示框 */}
             <div 
               ref={scanFrameRef}
-              className={`absolute inset-4 border-2 border-red-500 border-dashed rounded pointer-events-none scan-frame ${isScanning ? 'opacity-100' : 'opacity-70'}`}
+              className={`absolute pointer-events-none scan-frame ${isScanning ? 'opacity-100' : 'opacity-70'}`}
               style={{
-                top: '25%',
-                left: '25%',
-                right: '25%',
-                bottom: '25%',
+                top: '15%',
+                left: '15%',
+                width: '70%',
+                height: '70%',
                 animation: isScanning ? 'pulse 2s infinite' : 'none'
               }}
             >
-              <div className="absolute -top-6 left-1/2 transform -translate-x-1/2 bg-red-500 text-white px-2 py-1 rounded text-xs">
+              {/* 背景遮罩 */}
+              <div className="absolute inset-0 border-2 border-red-500 border-dashed rounded-lg bg-red-500 bg-opacity-5"></div>
+              
+              {/* 提示文字 */}
+              <div className="absolute -top-10 left-1/2 transform -translate-x-1/2 bg-red-500 text-white px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap shadow-lg">
+                <span className="mr-2">📱</span>
                 将条码对准此区域
+              </div>
+              
+              {/* 四个角落的扫描标记 */}
+              <div className="absolute -top-1 -left-1 w-8 h-8">
+                <div className="w-6 h-2 bg-red-500 rounded-r"></div>
+                <div className="w-2 h-6 bg-red-500 rounded-b"></div>
+              </div>
+              <div className="absolute -top-1 -right-1 w-8 h-8">
+                <div className="w-6 h-2 bg-red-500 rounded-l ml-auto"></div>
+                <div className="w-2 h-6 bg-red-500 rounded-b ml-auto"></div>
+              </div>
+              <div className="absolute -bottom-1 -left-1 w-8 h-8">
+                <div className="w-2 h-6 bg-red-500 rounded-t"></div>
+                <div className="w-6 h-2 bg-red-500 rounded-r"></div>
+              </div>
+              <div className="absolute -bottom-1 -right-1 w-8 h-8">
+                <div className="w-2 h-6 bg-red-500 rounded-t ml-auto"></div>
+                <div className="w-6 h-2 bg-red-500 rounded-l ml-auto"></div>
               </div>
               
               {/* 扫描线动画 */}
