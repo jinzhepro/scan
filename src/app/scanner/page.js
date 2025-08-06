@@ -131,8 +131,8 @@ export default function ScannerPage() {
             // 自动查询商品信息
             queryProductInfo(result.text);
 
-            // 成功扫描后可以选择停止扫描
-            // handleReset();
+            // 扫描成功后自动停止扫描
+            handleStopScan();
           }
 
           if (err && !(err instanceof NotFoundException)) {
@@ -285,6 +285,20 @@ export default function ScannerPage() {
   };
 
   /**
+   * 停止扫描
+   * 只停止扫描，不清除已有的结果和商品信息
+   */
+  const handleStopScan = () => {
+    console.log("⏹️ Stopping scanner...");
+
+    if (codeReaderRef.current) {
+      codeReaderRef.current.reset();
+      console.log("✅ Scanner stopped");
+    }
+    setIsScanning(false);
+  };
+
+  /**
    * 重置扫描器
    * 停止扫描并清除所有状态
    */
@@ -329,6 +343,14 @@ export default function ScannerPage() {
           >
             {isScanning ? "扫描中..." : "开始扫描"}
           </button>
+          {isScanning && (
+            <button
+              onClick={handleStopScan}
+              className="bg-orange-500 hover:bg-orange-600 text-white font-medium py-2 px-6 rounded-lg transition-colors"
+            >
+              停止扫描
+            </button>
+          )}
           <button
             onClick={handleReset}
             className="bg-gray-500 hover:bg-gray-600 text-white font-medium py-2 px-6 rounded-lg transition-colors"
