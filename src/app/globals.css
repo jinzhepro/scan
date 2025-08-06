@@ -1,0 +1,209 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* 全局样式重置 */
+* {
+  box-sizing: border-box;
+  padding: 0;
+  margin: 0;
+}
+
+html,
+body {
+  max-width: 100vw;
+  overflow-x: hidden;
+  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Helvetica Neue', 'STHeiTi', 'Microsoft YaHei', 'Tahoma', 'Simsun', sans-serif;
+  background-color: #f7f7f7;
+}
+
+body {
+  color: #191919;
+  background: linear-gradient(135deg, #f7f7f7 0%, #ededed 100%);
+  min-height: 100vh;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* 移动端H5适配 */
+@media screen and (max-width: 768px) {
+  html {
+    font-size: 16px;
+  }
+  
+  body {
+    -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+}
+
+/* 自定义组件样式 */
+@layer components {
+  .btn-primary {
+    @apply bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-medium py-3 px-6 rounded-xl transition-all duration-200 shadow-lg;
+  }
+  
+  .btn-secondary {
+    @apply bg-white hover:bg-gray-50 active:bg-gray-100 text-blue-600 border border-blue-600 font-medium py-3 px-6 rounded-xl transition-all duration-200;
+  }
+  
+  .card {
+    @apply bg-white rounded-2xl shadow-lg p-6;
+  }
+  
+  .input-field {
+    @apply w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200;
+  }
+  
+  .scanner-frame {
+    @apply relative border-2 border-blue-500 rounded-2xl overflow-hidden;
+  }
+  
+  .scanner-corner {
+    @apply absolute w-6 h-6 border-blue-500;
+  }
+  
+  .scanner-corner-tl {
+    @apply top-2 left-2 border-t-4 border-l-4;
+  }
+  
+  .scanner-corner-tr {
+    @apply top-2 right-2 border-t-4 border-r-4;
+  }
+  
+  .scanner-corner-bl {
+    @apply bottom-2 left-2 border-b-4 border-l-4;
+  }
+  
+  .scanner-corner-br {
+    @apply bottom-2 right-2 border-b-4 border-r-4;
+  }
+  
+  .scan-line {
+    @apply absolute left-0 right-0 h-0.5 bg-blue-500 shadow-lg animate-pulse;
+  }
+}
+
+/* 加载动画 */
+@layer utilities {
+  .loading-spinner {
+    @apply inline-block w-6 h-6 border-2 border-current border-t-transparent rounded-full animate-spin;
+  }
+  
+  .pulse-ring {
+    @apply absolute inset-0 rounded-full border-2 border-blue-500 animate-pulse;
+  }
+}
+
+/* 移动端浏览器兼容性 */
+.mobile-safe-area {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.mobile-status-bar {
+  padding-top: env(safe-area-inset-top);
+}
+
+/* 防止移动端下拉刷新 */
+body {
+  overscroll-behavior: none;
+  -webkit-overflow-scrolling: touch;
+  /* 防止iOS Safari缩放 */
+  -webkit-text-size-adjust: 100%;
+  /* 防止横屏时字体缩放 */
+  text-size-adjust: 100%;
+  /* 优化触摸滚动 */
+  -webkit-overflow-scrolling: touch;
+}
+
+/* 移动端优化 */
+@media (max-width: 768px) {
+  /* 优化点击区域 */
+  button, .btn-primary, .btn-secondary {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  
+  /* 优化输入框 */
+  .input-field {
+    font-size: 16px; /* 防止iOS缩放 */
+  }
+  
+  /* 优化卡片间距 */
+  .card {
+    margin-bottom: 12px;
+  }
+  
+  /* 优化文字大小 */
+  body {
+    font-size: 14px;
+    line-height: 1.5;
+  }
+  
+  h1 { font-size: 1.5rem; }
+  h2 { font-size: 1.25rem; }
+  h3 { font-size: 1.125rem; }
+}
+
+/* 横屏适配 */
+@media (orientation: landscape) and (max-height: 500px) {
+  .scan-container {
+    padding: 8px;
+  }
+  
+  .scan-preview {
+    height: 60vh;
+  }
+}
+
+/* 高分辨率屏幕优化 */
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+  .scan-overlay {
+    border-width: 1px;
+  }
+}
+
+/* 触摸优化 */
+.touch-action-none {
+  touch-action: none;
+}
+
+.touch-action-pan-y {
+  touch-action: pan-y;
+}
+
+/* 防止文本选择 */
+.no-select {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+
+/* 优化滚动条 */
+::-webkit-scrollbar {
+  width: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 2px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.3);
+}
+
+.no-zoom {
+  touch-action: manipulation;
+}
