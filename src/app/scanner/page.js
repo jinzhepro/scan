@@ -204,8 +204,18 @@ export default function ScannerPage() {
    * 将商品库存减1
    */
   const handleOutbound = async () => {
-    if (!productInfo || productInfo.stock <= 0) {
+    if (!productInfo) {
+      alert("没有商品信息");
+      return;
+    }
+
+    if (productInfo.stock <= 0) {
       alert("库存不足，无法出库");
+      return;
+    }
+
+    // 确认出库操作
+    if (!confirm(`确认要出库商品"${productInfo.name}"吗？\n当前库存：${productInfo.stock}`)) {
       return;
     }
 
@@ -224,7 +234,7 @@ export default function ScannerPage() {
 
       const data = await response.json();
 
-      if (response.ok) {
+      if (data.success) {
         console.log("✅ Outbound successful:", data);
         // 更新本地商品信息
         setProductInfo((prev) => ({
@@ -234,7 +244,7 @@ export default function ScannerPage() {
         alert("出库成功！库存已更新");
       } else {
         console.error("❌ Outbound failed:", data);
-        alert("出库失败：" + (data.error || "未知错误"));
+        alert("出库失败：" + (data.error || data.message || "未知错误"));
       }
     } catch (error) {
       console.error("❌ Outbound error:", error);

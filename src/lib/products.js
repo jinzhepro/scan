@@ -49,11 +49,21 @@ export async function createProduct(productData) {
  * 更新商品信息
  * @param {number} id - 商品ID
  * @param {Object} updateData - 更新的数据
- * @returns {Object} 更新后的商品信息
+ * @returns {Object|null} 更新后的商品信息或null（如果商品不存在）
  */
 export async function updateProduct(id, updateData) {
   try {
     const { name, price, stock, expiry_date } = updateData;
+
+    // 验证商品ID
+    if (!id || isNaN(id)) {
+      throw new Error("无效的商品ID");
+    }
+
+    // 验证库存不能为负数
+    if (stock !== undefined && stock < 0) {
+      throw new Error("库存不能为负数");
+    }
 
     const result = await sql`
       UPDATE products 
@@ -66,6 +76,11 @@ export async function updateProduct(id, updateData) {
       WHERE id = ${id}
       RETURNING *
     `;
+
+    if (result.length === 0) {
+      console.log("⚠️ 商品不存在, ID:", id);
+      return null;
+    }
 
     console.log("✅ 商品更新成功:", result[0]);
     return result[0];

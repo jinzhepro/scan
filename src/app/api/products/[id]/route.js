@@ -50,8 +50,33 @@ export async function GET(request, { params }) {
 export async function PUT(request, { params }) {
   try {
     const { id } = params;
+    
+    // 验证商品ID
+    if (!id || isNaN(parseInt(id))) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "无效的商品ID",
+        },
+        { status: 400 }
+      );
+    }
+
     const body = await request.json();
     const { name, price, stock, expiry_date } = body;
+
+    // 验证请求体
+    if (!body || Object.keys(body).length === 0) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "请求体不能为空",
+        },
+        { status: 400 }
+      );
+    }
+
+    console.log("🔄 更新商品, ID:", id, "数据:", body);
 
     const product = await updateProduct(parseInt(id), {
       name,
@@ -61,13 +86,30 @@ export async function PUT(request, { params }) {
     });
 
     if (!product) {
-      return NextResponse.json({ error: "商品未找到" }, { status: 404 });
+      return NextResponse.json(
+        {
+          success: false,
+          error: "商品未找到",
+        },
+        { status: 404 }
+      );
     }
 
-    return NextResponse.json(product);
+    return NextResponse.json({
+      success: true,
+      data: product,
+      message: "商品更新成功",
+    });
   } catch (error) {
     console.error("更新商品失败:", error);
-    return NextResponse.json({ error: "更新商品失败" }, { status: 500 });
+    return NextResponse.json(
+      {
+        success: false,
+        error: "更新商品失败",
+        message: error.message,
+      },
+      { status: 500 }
+    );
   }
 }
 
