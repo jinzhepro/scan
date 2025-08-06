@@ -34,7 +34,8 @@ export async function getScanRecords(limit = 50, offset = 0) {
       SELECT 
         sr.*,
         p.name as product_name,
-        p.price as product_price
+        p.price as product_price,
+        p.stock as product_stock
       FROM scan_records sr
       LEFT JOIN products p ON sr.product_id = p.id
       ORDER BY sr.scanned_at DESC
@@ -96,7 +97,8 @@ export async function getScanHistoryByBarcode(barcode) {
       SELECT 
         sr.*,
         p.name as product_name,
-        p.price as product_price
+        p.price as product_price,
+        p.stock as product_stock
       FROM scan_records sr
       LEFT JOIN products p ON sr.product_id = p.id
       WHERE sr.barcode = ${barcode}
@@ -146,10 +148,11 @@ export async function getPopularScannedProducts(limit = 10) {
         COUNT(*) as scan_count,
         p.name as product_name,
         p.price as product_price,
+        p.stock as product_stock,
         MAX(sr.scanned_at) as last_scanned
       FROM scan_records sr
       LEFT JOIN products p ON sr.product_id = p.id
-      GROUP BY sr.barcode, p.name, p.price
+      GROUP BY sr.barcode, p.name, p.price, p.stock
       ORDER BY scan_count DESC, last_scanned DESC
       LIMIT ${limit}
     `;

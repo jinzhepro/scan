@@ -128,11 +128,11 @@ export default function ScannerPage() {
             setEditableResult(result.text);
             setIsEditing(false); // 新扫描结果时退出编辑模式
 
-            // 自动查询商品信息
-            queryProductInfo(result.text);
-
             // 扫描成功后自动停止扫描
             handleStopScan();
+
+            // 自动查询商品信息但不记录历史
+            queryProductInfoWithoutHistory(result.text);
           }
 
           if (err && !(err instanceof NotFoundException)) {
@@ -156,15 +156,55 @@ export default function ScannerPage() {
   };
 
   /**
-   * 查询商品信息
-   * 根据扫描到的条形码查询数据库中的商品信息
+   * 查询商品信息（不记录历史）
+   * 根据扫描到的条形码查询数据库中的商品信息，但不记录历史
    */
-  const queryProductInfo = async (barcode) => {
-    if (!barcode) return;
+  const queryProductInfo = async () => {
+    if (!result) {
+      alert("请先扫描商品条形码");
+      return;
+    }
 
     setIsLoading(true);
     try {
-      console.log("🔍 Querying product info for barcode:", barcode);
+      console.log("🔍 Querying product info for barcode:", result);
+
+      const response = await fetch(
+        `/api/products/barcode/${encodeURIComponent(result)}`
+      );
+      const data = await response.json();
+
+      if (data.success) {
+        if (data.found) {
+          console.log("✅ Product found:", data.data);
+          setProductInfo(data.data);
+        } else {
+          console.log("ℹ️ Product not found");
+          setProductInfo(null);
+          alert("未找到该商品信息");
+        }
+      } else {
+        console.error("❌ Query failed:", data);
+        setProductInfo(null);
+        alert("查询失败：" + (data.error || data.message || "未知错误"));
+      }
+    } catch (error) {
+      console.error("❌ Failed to query product:", error);
+      setProductInfo(null);
+      alert("查询失败：网络错误");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  /**
+   * 查询商品信息（内部使用，不记录历史）
+   * 扫描成功后自动调用的查询函数
+   */
+  const queryProductInfoWithoutHistory = async (barcode) => {
+    setIsLoading(true);
+    try {
+      console.log("🔍 Auto querying product info for barcode:", barcode);
 
       const response = await fetch(
         `/api/products/barcode/${encodeURIComponent(barcode)}`
@@ -176,20 +216,12 @@ export default function ScannerPage() {
           console.log("✅ Product found:", data.data);
           setProductInfo(data.data);
         } else {
-          console.log("ℹ️ Product not found, scan recorded");
+          console.log("ℹ️ Product not found");
           setProductInfo(null);
         }
-
-        // 更新扫描历史
-        setScanHistory((prev) => [
-          {
-            barcode,
-            product: data.found ? data.data : null,
-            timestamp: new Date().toLocaleString(),
-            found: data.found,
-          },
-          ...prev.slice(0, 9),
-        ]); // 保留最近10条记录
+      } else {
+        console.error("❌ Query failed:", data);
+        setProductInfo(null);
       }
     } catch (error) {
       console.error("❌ Failed to query product:", error);
@@ -201,58 +233,88 @@ export default function ScannerPage() {
 
   /**
    * 处理商品出库
-   * 将商品库存减1
+   * 先查询商品信息，确认后进行出库操作，成功后记录到历史
    */
   const handleOutbound = async () => {
-    if (!productInfo) {
-      alert("没有商品信息");
+    if (!result) {
+      alert("请先扫描商品条形码");
       return;
     }
 
-    if (productInfo.stock <= 0) {
-      alert("库存不足，无法出库");
-      return;
-    }
-
-    // 确认出库操作
-    if (
-      !confirm(
-        `确认要出库商品"${productInfo.name}"吗？\n当前库存：${productInfo.stock}`
-      )
-    ) {
-      return;
-    }
+    setIsLoading(true);
 
     try {
-      console.log("📦 Processing outbound for product:", productInfo.id);
+      console.log("🔍 Querying product info for outbound:", result);
 
-      const response = await fetch(`/api/products/${productInfo.id}`, {
+      const product = productInfo;
+      console.log("✅ Product found for outbound:", product);
+
+      if (product.stock <= 0) {
+        alert("库存不足，无法出库");
+        setIsLoading(false);
+        return;
+      }
+
+      // 确认出库操作
+      if (
+        !confirm(
+          `确认要出库商品"${product.name}"吗？\n当前库存：${product.stock}`
+        )
+      ) {
+        setIsLoading(false);
+        return;
+      }
+
+      console.log("📦 Processing outbound for product:", product.id);
+
+      // 执行出库操作
+      const outboundResponse = await fetch(`/api/products/${product.id}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          stock: productInfo.stock - 1,
+          stock: product.stock - 1,
         }),
       });
 
-      const data = await response.json();
+      const outboundData = await outboundResponse.json();
 
-      if (data.success) {
-        console.log("✅ Outbound successful:", data);
-        // 更新本地商品信息
-        setProductInfo((prev) => ({
-          ...prev,
-          stock: prev.stock - 1,
-        }));
+      if (outboundData.success) {
+        console.log("✅ Outbound successful:", outboundData);
+
+        // 更新商品信息显示
+        const updatedProduct = {
+          ...product,
+          stock: product.stock - 1,
+        };
+        setProductInfo(updatedProduct);
+
+        // 记录到扫描历史（只有出库成功才记录）
+        setScanHistory((prev) => [
+          {
+            barcode: result,
+            product: updatedProduct,
+            timestamp: new Date().toLocaleString(),
+            found: true,
+            action: "outbound", // 标记为出库操作
+          },
+          ...prev.slice(0, 9),
+        ]);
+
         alert("出库成功！库存已更新");
       } else {
-        console.error("❌ Outbound failed:", data);
-        alert("出库失败：" + (data.error || data.message || "未知错误"));
+        console.error("❌ Outbound failed:", outboundData);
+        alert(
+          "出库失败：" +
+            (outboundData.error || outboundData.message || "未知错误")
+        );
       }
     } catch (error) {
       console.error("❌ Outbound error:", error);
       alert("出库失败：网络错误");
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -460,9 +522,6 @@ export default function ScannerPage() {
                   <h3 className="text-lg font-semibold text-gray-900">
                     {productInfo.name}
                   </h3>
-                  <span className="bg-green-100 text-green-800 text-xs font-medium px-2 py-1 rounded">
-                    已找到
-                  </span>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4 text-sm mb-4">
@@ -500,8 +559,14 @@ export default function ScannerPage() {
                   )}
                 </div>
 
-                {/* 出库按钮 */}
-                <div className="flex justify-end">
+                {/* 操作按钮 */}
+                <div className="flex justify-end gap-2">
+                  <button
+                    onClick={queryProductInfo}
+                    className="px-4 py-2 rounded-lg font-medium text-sm transition-colors bg-blue-500 hover:bg-blue-600 text-white"
+                  >
+                    🔍 重新查询
+                  </button>
                   <button
                     onClick={handleOutbound}
                     disabled={!productInfo.stock || productInfo.stock <= 0}
@@ -516,21 +581,33 @@ export default function ScannerPage() {
                 </div>
               </div>
             ) : (
-              <div className="bg-white border border-yellow-300 rounded-lg p-4 border-l-4 border-l-yellow-500">
-                <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-lg font-semibold text-gray-900">
-                    未找到商品信息
+              <div className="bg-white border border-gray-300 rounded-lg p-4 text-center">
+                <div className="mb-4">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                    扫描成功
                   </h3>
-                  <span className="bg-yellow-100 text-yellow-800 text-xs font-medium px-2 py-1 rounded">
-                    未知商品
-                  </span>
+                  <p className="text-gray-600 text-sm mb-3">
+                    条形码: <span className="font-mono">{result}</span>
+                  </p>
+                  <p className="text-gray-500 text-sm">
+                    点击查询按钮获取商品信息，或直接出库
+                  </p>
                 </div>
-                <p className="text-gray-600 text-sm mb-3">
-                  数据库中没有找到该条形码对应的商品信息，但扫描记录已保存。
-                </p>
-                <div className="text-sm">
-                  <span className="text-gray-600">条形码:</span>
-                  <p className="font-mono text-gray-900">{result}</p>
+
+                {/* 操作按钮 */}
+                <div className="flex justify-center gap-2">
+                  <button
+                    onClick={queryProductInfo}
+                    className="px-4 py-2 rounded-lg font-medium text-sm transition-colors bg-blue-500 hover:bg-blue-600 text-white"
+                  >
+                    🔍 查询商品信息
+                  </button>
+                  <button
+                    onClick={handleOutbound}
+                    className="px-4 py-2 rounded-lg font-medium text-sm transition-colors bg-red-500 hover:bg-red-600 text-white"
+                  >
+                    📦 直接出库
+                  </button>
                 </div>
               </div>
             )}
@@ -548,7 +625,7 @@ export default function ScannerPage() {
                 <div key={index} className="p-3 hover:bg-gray-50">
                   <div className="flex items-center justify-between">
                     <div className="flex-1">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 mb-1">
                         <span className="font-mono text-sm text-gray-900">
                           {scan.barcode}
                         </span>
@@ -563,9 +640,23 @@ export default function ScannerPage() {
                         </span>
                       </div>
                       {scan.product && (
-                        <p className="text-sm text-gray-600 mt-1">
-                          {scan.product.name}
-                        </p>
+                        <div className="text-sm text-gray-600">
+                          <p className="font-medium">{scan.product.name}</p>
+                          <div className="flex items-center gap-4 mt-1">
+                            <span>价格: ¥{scan.product.price}</span>
+                            {scan.product.stock !== null && (
+                              <span
+                                className={`font-medium ${
+                                  scan.product.stock > 0
+                                    ? "text-gray-700"
+                                    : "text-red-600"
+                                }`}
+                              >
+                                出库后库存: {scan.product.stock}
+                              </span>
+                            )}
+                          </div>
+                        </div>
                       )}
                     </div>
                     <span className="text-xs text-gray-500">
