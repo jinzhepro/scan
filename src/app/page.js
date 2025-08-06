@@ -468,16 +468,16 @@ export default function ScannerPage() {
           <p className="text-gray-600 max-w-2xl mx-auto mb-4">
             使用优化的ZXing JavaScript库从高分辨率摄像头扫描任何支持的1D/2D码。
           </p>
-          
+
           {/* 导航链接 */}
-          <div className="flex justify-center gap-4">
+          {/* <div className="flex justify-center gap-4">
             <Link
               href="/products"
               className="inline-flex items-center px-4 py-2 bg-green-500 hover:bg-green-600 text-white font-medium rounded-lg transition-colors"
             >
               📊 商品管理
             </Link>
-          </div>
+          </div> */}
         </div>
         {/* 视频预览区域 */}
         <div className="flex justify-center mb-6">
