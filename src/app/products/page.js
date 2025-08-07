@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { toast, Toaster } from "sonner";
 
@@ -25,6 +25,20 @@ export default function ProductsPage() {
     onlyAvailableStock: false,
   });
   const [isAdjustingStock, setIsAdjustingStock] = useState(false);
+  
+  // 添加搜索状态
+  const [searchQuery, setSearchQuery] = useState("");
+
+  // 使用 useMemo 来过滤商品列表
+  const filteredProducts = useMemo(() => {
+    if (!searchQuery.trim()) {
+      return products;
+    }
+    
+    return products.filter(product =>
+      product.name.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  }, [products, searchQuery]);
 
   /**
    * 获取所有商品信息
@@ -254,6 +268,49 @@ export default function ProductsPage() {
           <p className="text-gray-600">查看所有商品信息、库存状态和出库统计</p>
         </div>
 
+        {/* 搜索框 */}
+        <div className="mb-6">
+          <div className="bg-white rounded-lg shadow p-4">
+            <div className="flex items-center space-x-4">
+              <div className="flex-1">
+                <label htmlFor="search" className="block text-sm font-medium text-gray-700 mb-2">
+                  搜索商品
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <svg className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                  </div>
+                  <input
+                    type="text"
+                    id="search"
+                    className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white text-gray-900 placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="输入商品名称进行搜索..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                  />
+                </div>
+              </div>
+              {searchQuery && (
+                <div className="flex items-end">
+                  <button
+                    onClick={() => setSearchQuery("")}
+                    className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+                  >
+                    清除搜索
+                  </button>
+                </div>
+              )}
+            </div>
+            {searchQuery && (
+              <div className="mt-2 text-sm text-gray-600">
+                找到 {filteredProducts.length} 个匹配的商品
+              </div>
+            )}
+          </div>
+        </div>
+
         {/* 统计卡片 */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
           <div className="bg-white rounded-lg shadow p-6">
@@ -262,9 +319,11 @@ export default function ProductsPage() {
                 <span className="text-2xl">📦</span>
               </div>
               <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">商品总数</p>
+                <p className="text-sm font-medium text-gray-600">
+                  {searchQuery ? "搜索结果" : "商品总数"}
+                </p>
                 <p className="text-2xl font-bold text-gray-900">
-                  {products.length}
+                  {filteredProducts.length}
                 </p>
               </div>
             </div>
@@ -278,7 +337,7 @@ export default function ProductsPage() {
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">有库存商品</p>
                 <p className="text-2xl font-bold text-gray-900">
-                  {products.filter((p) => p.stock > 0).length}
+                  {filteredProducts.filter((p) => p.stock > 0).length}
                 </p>
               </div>
             </div>
@@ -292,7 +351,7 @@ export default function ProductsPage() {
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">缺货商品</p>
                 <p className="text-2xl font-bold text-gray-900">
-                  {products.filter((p) => p.stock === 0).length}
+                  {filteredProducts.filter((p) => p.stock === 0).length}
                 </p>
               </div>
             </div>
@@ -319,9 +378,19 @@ export default function ProductsPage() {
             <h2 className="text-lg font-semibold text-gray-900">商品列表</h2>
           </div>
 
-          {products.length === 0 ? (
+          {filteredProducts.length === 0 ? (
             <div className="p-6 text-center">
-              <p className="text-gray-500">暂无商品数据</p>
+              <p className="text-gray-500">
+                {searchQuery ? "没有找到匹配的商品" : "暂无商品数据"}
+              </p>
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery("")}
+                  className="mt-2 text-blue-600 hover:text-blue-800 text-sm"
+                >
+                  清除搜索条件
+                </button>
+              )}
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -352,7 +421,7 @@ export default function ProductsPage() {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {products.map((product) => {
+                  {filteredProducts.map((product) => {
                     const stats = outboundStats[product.barcode];
                     return (
                       <tr key={product.id} className="hover:bg-gray-50">
