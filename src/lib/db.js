@@ -1,10 +1,7 @@
-import postgres from "postgres";
+import { neon } from "@neondatabase/serverless";
 
-/**
- * PostgreSQL数据库连接配置
- * 使用postgres.js库连接Supabase PostgreSQL数据库
- */
-const sql = postgres(process.env.POSTGRES_URL, {
+
+const sql = neon(process.env.DATABASE_URL, {
   ssl: "require",
   max: 20,
   idle_timeout: 20,
@@ -53,29 +50,7 @@ export async function createProductsTable() {
   }
 }
 
-/**
- * 创建出库记录表
- */
-export async function createOutboundRecordsTable() {
-  try {
-    await sql`
-      CREATE TABLE IF NOT EXISTS outbound_records (
-        id SERIAL PRIMARY KEY,
-        barcode VARCHAR(255) NOT NULL,
-        product_id INTEGER REFERENCES products(id),
-        quantity INTEGER DEFAULT 1,
-        remaining_stock INTEGER,
-        remaining_available_stock INTEGER,
-        outbound_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `;
-    console.log("✅ 出库记录表创建成功");
-    return true;
-  } catch (error) {
-    console.error("❌ 创建出库记录表失败:", error);
-    return false;
-  }
-}
+
 
 /**
  * 添加可用库存字段到现有商品表
@@ -116,49 +91,7 @@ export async function addAvailableStockColumn() {
   }
 }
 
-/**
- * 为出库记录表添加库存字段
- */
-export async function addOutboundStockColumns() {
-  try {
-    // 检查remaining_stock字段是否已存在
-    const remainingStockExists = await sql`
-      SELECT column_name 
-      FROM information_schema.columns 
-      WHERE table_name = 'outbound_records' 
-      AND column_name = 'remaining_stock'
-    `;
 
-    if (remainingStockExists.length === 0) {
-      await sql`
-        ALTER TABLE outbound_records 
-        ADD COLUMN remaining_stock INTEGER
-      `;
-      console.log("✅ remaining_stock字段添加成功");
-    }
-
-    // 检查remaining_available_stock字段是否已存在
-    const remainingAvailableStockExists = await sql`
-      SELECT column_name 
-      FROM information_schema.columns 
-      WHERE table_name = 'outbound_records' 
-      AND column_name = 'remaining_available_stock'
-    `;
-
-    if (remainingAvailableStockExists.length === 0) {
-      await sql`
-        ALTER TABLE outbound_records 
-        ADD COLUMN remaining_available_stock INTEGER
-      `;
-      console.log("✅ remaining_available_stock字段添加成功");
-    }
-    
-    return true;
-  } catch (error) {
-    console.error("❌ 添加出库记录库存字段失败:", error);
-    return false;
-  }
-}
 
 /**
  * 初始化数据库表
@@ -172,9 +105,7 @@ export async function initDatabase() {
   }
 
   await createProductsTable();
-  await createOutboundRecordsTable();
   await addAvailableStockColumn(); // 添加可用库存字段迁移
-  await addOutboundStockColumns(); // 添加出库记录库存字段迁移
 
   console.log("✅ 数据库初始化完成");
 }

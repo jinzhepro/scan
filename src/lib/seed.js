@@ -1461,9 +1461,7 @@ export async function clearAllData() {
   try {
     console.log("🔄 正在清空数据库数据...");
 
-    // 清空出库记录表
-    await sql`DELETE FROM outbound_records`;
-    console.log("✅ 出库记录表已清空");
+
 
     // 清空商品表
     await sql`DELETE FROM products`;
@@ -1471,7 +1469,6 @@ export async function clearAllData() {
 
     // 重置自增序列
     await sql`ALTER SEQUENCE products_id_seq RESTART WITH 1`;
-    await sql`ALTER SEQUENCE outbound_records_id_seq RESTART WITH 1`;
     console.log("✅ 自增序列已重置");
 
     console.log("✅ 数据库数据清空完成");
@@ -1563,12 +1560,9 @@ export async function resetDatabase() {
 export async function getDatabaseStats() {
   try {
     const productStats = await sql`SELECT COUNT(*) as count FROM products`;
-    const outboundStats =
-      await sql`SELECT COUNT(*) as count FROM outbound_records`;
 
     return {
       products: parseInt(productStats[0].count),
-      outboundRecords: parseInt(outboundStats[0].count),
     };
   } catch (error) {
     console.error("❌ 获取数据库统计信息失败:", error);

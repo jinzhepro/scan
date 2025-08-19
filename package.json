@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@neondatabase/serverless": "^1.0.1",
     "@zxing/library": "^0.21.3",
     "next": "15.4.5",
     "postgres": "^3.4.7",
@@ -23,5 +24,8 @@
     "eslint": "^9",
     "eslint-config-next": "15.4.5",
     "tailwindcss": "^4"
+  },
+  "volta": {
+    "node": "22.18.0"
   }
 }
