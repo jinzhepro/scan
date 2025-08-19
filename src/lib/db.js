@@ -1,8 +1,7 @@
-import { neon } from "@neondatabase/serverless";
+import postgres from 'postgres';
 
-
-const sql = neon(process.env.DATABASE_URL, {
-  ssl: "require",
+// 创建PostgreSQL连接
+const sql = postgres(process.env.DATABASE_URL, {
   max: 20,
   idle_timeout: 20,
   connect_timeout: 10,
@@ -37,7 +36,7 @@ export async function createProductsTable() {
         price DECIMAL(10, 2) NOT NULL,
         stock INTEGER DEFAULT 0,
         available_stock INTEGER DEFAULT 0,
-        expiry_date DATE,
+        expiry_date VARCHAR(255),
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
@@ -53,43 +52,55 @@ export async function createProductsTable() {
 
 
 /**
- * 添加可用库存字段到现有商品表
+ * 创建订单表
  */
-export async function addAvailableStockColumn() {
+export async function createOrdersTable() {
   try {
-    // 检查字段是否已存在
-    const columnExists = await sql`
-      SELECT column_name 
-      FROM information_schema.columns 
-      WHERE table_name = 'products' 
-      AND column_name = 'available_stock'
+    await sql`
+      CREATE TABLE IF NOT EXISTS orders (
+        id SERIAL PRIMARY KEY,
+        order_number VARCHAR(255) UNIQUE NOT NULL,
+        total_amount DECIMAL(10, 2) NOT NULL,
+        discount_amount DECIMAL(10, 2) DEFAULT 0,
+        final_amount DECIMAL(10, 2) NOT NULL,
+        status VARCHAR(50) DEFAULT 'completed',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
     `;
-
-    if (columnExists.length === 0) {
-      // 添加可用库存字段
-      await sql`
-        ALTER TABLE products 
-        ADD COLUMN available_stock INTEGER DEFAULT 0
-      `;
-      
-      // 将现有商品的可用库存设置为与总库存相同
-      await sql`
-        UPDATE products 
-        SET available_stock = stock 
-        WHERE available_stock IS NULL OR available_stock = 0
-      `;
-      
-      console.log("✅ 可用库存字段添加成功");
-    } else {
-      console.log("ℹ️  可用库存字段已存在，跳过添加");
-    }
-    
+    console.log("✅ 订单表创建成功");
     return true;
   } catch (error) {
-    console.error("❌ 添加可用库存字段失败:", error);
+    console.error("❌ 创建订单表失败:", error);
     return false;
   }
 }
+
+/**
+ * 创建订单商品表
+ */
+export async function createOrderItemsTable() {
+  try {
+    await sql`
+      CREATE TABLE IF NOT EXISTS order_items (
+        id SERIAL PRIMARY KEY,
+        order_id INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+        barcode VARCHAR(255) NOT NULL,
+        product_name VARCHAR(255) NOT NULL,
+        price DECIMAL(10, 2) NOT NULL,
+        quantity INTEGER NOT NULL,
+        subtotal DECIMAL(10, 2) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `;
+    console.log("✅ 订单商品表创建成功");
+    return true;
+  } catch (error) {
+    console.error("❌ 创建订单商品表失败:", error);
+    return false;
+  }
+}
+
 
 
 
@@ -105,7 +116,8 @@ export async function initDatabase() {
   }
 
   await createProductsTable();
-  await addAvailableStockColumn(); // 添加可用库存字段迁移
+  await createOrdersTable(); // 创建订单表
+  await createOrderItemsTable(); // 创建订单商品表
 
   console.log("✅ 数据库初始化完成");
 }

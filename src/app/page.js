@@ -33,6 +33,11 @@ export default function ScannerPage() {
   });
   const [isAdjustingStock, setIsAdjustingStock] = useState(false);
 
+  // 订单相关状态
+  const [orderItems, setOrderItems] = useState([]);
+  const [orderTotal, setOrderTotal] = useState(0);
+  const [discountAmount, setDiscountAmount] = useState('');
+
   // DOM引用
   const videoRef = useRef(null);
   const codeReaderRef = useRef(null);
@@ -83,6 +88,225 @@ export default function ScannerPage() {
       }
     };
   }, []);
+
+  /**
+   * 从localStorage加载订单数据
+   */
+  useEffect(() => {
+    const savedOrder = localStorage.getItem('scannerOrder');
+    if (savedOrder) {
+      try {
+        const orderData = JSON.parse(savedOrder);
+        setOrderItems(orderData.items || []);
+        setOrderTotal(orderData.total || 0);
+        setDiscountAmount(orderData.discountAmount || '');
+      } catch (error) {
+        console.error('加载订单数据失败:', error);
+      }
+    }
+  }, []);
+
+  /**
+   * 保存订单数据到localStorage
+   */
+  const saveOrderToStorage = (items, total, discount = discountAmount) => {
+    try {
+      const orderData = {
+        items,
+        total,
+        discountAmount: discount,
+        updatedAt: new Date().toISOString()
+      };
+      localStorage.setItem('scannerOrder', JSON.stringify(orderData));
+    } catch (error) {
+      console.error('保存订单数据失败:', error);
+    }
+  };
+
+  /**
+   * 计算订单总价
+   */
+  const calculateOrderTotal = (items) => {
+    return items.reduce((total, item) => total + (item.price * item.quantity), 0);
+  };
+
+  /**
+   * 添加商品到订单
+   */
+  const addToOrder = () => {
+    if (!productInfo) {
+      toast.error('请先扫描商品');
+      return;
+    }
+
+    const availableStock = productInfo.available_stock || 0;
+    const existingItemIndex = orderItems.findIndex(item => item.barcode === productInfo.barcode);
+    let newItems;
+
+    if (existingItemIndex >= 0) {
+      // 如果商品已存在，检查是否超过可用库存
+      const currentQuantity = orderItems[existingItemIndex].quantity;
+      if (currentQuantity >= availableStock) {
+        toast.error(`库存不足，当前可用库存：${availableStock}`);
+        return;
+      }
+      newItems = [...orderItems];
+      newItems[existingItemIndex].quantity += 1;
+      // 更新可用库存信息（以防库存发生变化）
+      newItems[existingItemIndex].availableStock = availableStock;
+    } else {
+      // 如果商品不存在，检查库存是否足够
+      if (availableStock < 1) {
+        toast.error(`库存不足，当前可用库存：${availableStock}`);
+        return;
+      }
+      const newItem = {
+        barcode: productInfo.barcode,
+        name: productInfo.name,
+        price: parseFloat(productInfo.price),
+        quantity: 1,
+        availableStock: availableStock
+      };
+      newItems = [...orderItems, newItem];
+    }
+
+    const newTotal = calculateOrderTotal(newItems);
+    setOrderItems(newItems);
+    setOrderTotal(newTotal);
+    saveOrderToStorage(newItems, newTotal);
+    
+    toast.success('商品已加入订单');
+  };
+
+  /**
+   * 从订单中移除商品
+   */
+  const removeFromOrder = (barcode) => {
+    const newItems = orderItems.filter(item => item.barcode !== barcode);
+    const newTotal = calculateOrderTotal(newItems);
+    setOrderItems(newItems);
+    setOrderTotal(newTotal);
+    saveOrderToStorage(newItems, newTotal);
+    toast.success('商品已从订单中移除');
+  };
+
+  /**
+   * 更新订单商品数量
+   */
+  const updateOrderItemQuantity = (barcode, newQuantity) => {
+
+    // 查找订单项并检查库存限制
+    const orderItem = orderItems.find(item => item.barcode === barcode);
+    if (orderItem) {
+      const availableStock = orderItem.availableStock || 0;
+      if (newQuantity > availableStock) {
+        toast.error(`库存不足，当前可用库存：${availableStock}`);
+        return;
+      }
+    }
+
+    const newItems = orderItems.map(item => 
+      item.barcode === barcode ? { ...item, quantity: newQuantity } : item
+    );
+    const newTotal = calculateOrderTotal(newItems);
+    setOrderItems(newItems);
+    setOrderTotal(newTotal);
+    saveOrderToStorage(newItems, newTotal);
+  };
+
+  /**
+   * 更新优惠金额
+   */
+  const updateDiscountAmount = (amount) => {
+     const discount = amount === '' ? '' : Math.max(0, parseFloat(amount) || 0);
+     setDiscountAmount(discount);
+     saveOrderToStorage(orderItems, orderTotal, discount);
+   };
+
+  /**
+   * 清空订单
+   */
+  const clearOrder = () => {
+    setOrderItems([]);
+    setOrderTotal(0);
+    setDiscountAmount('');
+    localStorage.removeItem('scannerOrder');
+    toast.success('订单已清空');
+  };
+
+  /**
+   * 重置页面状态（结算后使用）
+   */
+  const resetPageState = () => {
+    // 重置订单相关状态
+    setOrderItems([]);
+    setOrderTotal(0);
+    setDiscountAmount('');
+    localStorage.removeItem('scannerOrder');
+    
+    // 重置扫描相关状态
+    setResult('');
+    setEditableResult('');
+    setIsEditing(false);
+    setProductInfo(null);
+    setScanCount(0);
+    setLastScanTime(0);
+    
+    // 重置库存调整状态
+    setShowStockModal(false);
+    setStockAdjustment({
+      type: 'add',
+      quantity: '',
+      reason: '',
+      adjustAvailableStock: true,
+      onlyAvailableStock: false,
+    });
+    setIsAdjustingStock(false);
+  };
+
+  /**
+   * 处理订单结算
+   */
+  const handleCheckout = async () => {
+    if (orderItems.length === 0) {
+      toast.error('订单为空，无法结算');
+      return;
+    }
+
+    try {
+      const totalAmount = orderTotal;
+      const discount = parseFloat(discountAmount) || 0;
+      const finalAmount = Math.max(0, totalAmount - discount);
+
+      const orderData = {
+        items: orderItems,
+        totalAmount,
+        discountAmount: discount,
+        finalAmount
+      };
+
+      const response = await fetch('/api/orders', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(orderData),
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        toast.success(`订单结算成功！订单号：${result.order.orderNumber}`);
+        // 重置页面状态
+        resetPageState();
+      } else {
+        toast.error(result.error || '订单结算失败');
+      }
+    } catch (error) {
+      console.error('订单结算失败:', error);
+      toast.error('订单结算失败，请重试');
+    }
+  };
 
   /**
    * 开始高精度扫描功能
@@ -427,14 +651,20 @@ export default function ScannerPage() {
           </p>
 
           {/* 导航链接 */}
-          {/* <div className="flex justify-center gap-4">
+          <div className="flex justify-center gap-4">
             <Link
               href="/products"
               className="inline-flex items-center px-4 py-2 bg-green-500 hover:bg-green-600 text-white font-medium rounded-lg transition-colors"
             >
               📊 商品管理
             </Link>
-          </div> */}
+            <Link
+              href="/orders"
+              className="inline-flex items-center px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white font-medium rounded-lg transition-colors"
+            >
+              📋 订单管理
+            </Link>
+          </div>
         </div>
         {/* 视频预览区域 */}
         <div className="flex justify-center mb-6">
@@ -628,6 +858,12 @@ export default function ScannerPage() {
                   >
                     📊 调整库存
                   </button>
+                  <button
+                    onClick={addToOrder}
+                    className="px-4 py-2 rounded-lg font-medium text-sm transition-colors bg-orange-500 hover:bg-orange-600 text-white"
+                  >
+                    🛒 加入订单
+                  </button>
 
                 </div>
               </div>
@@ -661,6 +897,131 @@ export default function ScannerPage() {
         )}
 
 
+
+        {/* 订单信息展示 */}
+        {orderItems.length > 0 && (
+          <div className="max-w-2xl mx-auto mt-6">
+            <div className="bg-white border border-blue-300 rounded-lg p-4 border-l-4 border-l-blue-500">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-semibold text-gray-900">
+                  🛒 订单商品 ({orderItems.length}件)
+                </h3>
+                <button
+                  onClick={clearOrder}
+                  className="text-red-600 hover:text-red-800 text-sm font-medium"
+                >
+                  清空订单
+                </button>
+              </div>
+
+              {/* 订单商品列表 */}
+              <div className="space-y-3 mb-4">
+                {orderItems.map((item, index) => {
+                  // 使用订单项中保存的库存信息
+                  const availableStock = item.availableStock || 0;
+                  
+                  return (
+                    <div key={item.barcode} className="flex items-center justify-between bg-gray-50 p-3 rounded-lg">
+                      <div className="flex-1">
+                        <h4 className="font-medium text-gray-900">{item.name}</h4>
+                        <p className="text-sm text-gray-600 font-mono">{item.barcode}</p>
+                        <p className="text-sm text-green-600 font-semibold">¥{item.price.toFixed(2)}</p>
+                        <p className="text-xs text-blue-600">
+                          可用库存: {availableStock}
+                          {item.quantity > availableStock && (
+                            <span className="text-red-600 ml-1">(超出库存)</span>
+                          )}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => updateOrderItemQuantity(item.barcode, item.quantity - 1)}
+                          disabled={item.quantity <= 1}
+                          className={`w-8 h-8 rounded-full flex items-center justify-center font-bold ${
+                            item.quantity <= 1
+                              ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                              : 'bg-gray-200 hover:bg-gray-300 text-gray-600'
+                          }`}
+                        >
+                          -
+                        </button>
+                        <span className={`w-12 text-center font-semibold ${
+                          item.quantity > availableStock 
+                            ? 'text-red-600' 
+                            : 'text-gray-900'
+                        }`}>
+                          {item.quantity}
+                        </span>
+                        <button
+                          onClick={() => updateOrderItemQuantity(item.barcode, item.quantity + 1)}
+                          disabled={item.quantity >= availableStock}
+                          className={`w-8 h-8 rounded-full flex items-center justify-center font-bold ${
+                            item.quantity >= availableStock
+                              ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                              : 'bg-gray-200 hover:bg-gray-300 text-gray-600'
+                          }`}
+                        >
+                          +
+                        </button>
+                        <button
+                          onClick={() => removeFromOrder(item.barcode)}
+                          className="ml-2 text-red-600 hover:text-red-800 text-sm"
+                        >
+                          删除
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* 订单总计 */}
+              <div className="border-t pt-4">
+                <div className="space-y-3">
+                  {/* 商品小计 */}
+                  <div className="flex justify-between items-center">
+                    <span className="text-base text-gray-700">商品小计:</span>
+                    <span className="text-base text-gray-900">¥{orderTotal.toFixed(2)}</span>
+                  </div>
+                  
+                  {/* 优惠金额 */}
+                  <div className="flex justify-between items-center">
+                    <span className="text-base text-gray-700">优惠金额:</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-gray-500">¥</span>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={discountAmount}
+                        onChange={(e) => updateDiscountAmount(e.target.value)}
+                        className="w-20 px-2 py-1 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-right text-gray-900 placeholder-gray-400"
+                        placeholder="0.00"
+                      />
+                    </div>
+                  </div>
+                  
+                  {/* 最终总计 */}
+                  <div className="flex justify-between items-center border-t pt-3">
+                    <span className="text-lg font-semibold text-gray-900">应付总额:</span>
+                    <span className="text-xl font-bold text-green-600">
+                      ¥{Math.max(0, orderTotal - (parseFloat(discountAmount) || 0)).toFixed(2)}
+                    </span>
+                  </div>
+                </div>
+                
+                <div className="mt-4 flex justify-end gap-2">
+                  <button
+                    onClick={handleCheckout}
+                    className="px-6 py-2 bg-blue-500 hover:bg-blue-600 text-white font-medium rounded-lg transition-colors"
+                  >
+                    💳 结算订单
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* 返回首页链接 */}
         <div className="text-center mt-8">

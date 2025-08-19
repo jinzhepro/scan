@@ -12,6 +12,7 @@ export default function ProductsPage() {
   const [products, setProducts] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showStockModal, setShowStockModal] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState(null);
   const [stockAdjustment, setStockAdjustment] = useState({
     type: "add", // 'add' 或 'subtract' 或 'set'
     quantity: "",
@@ -23,6 +24,13 @@ export default function ProductsPage() {
   
   // 添加搜索状态
   const [searchQuery, setSearchQuery] = useState("");
+  
+  // 添加销售统计状态
+  const [salesStats, setSalesStats] = useState([]);
+  const [showSalesModal, setShowSalesModal] = useState(false);
+  const [selectedProductSales, setSelectedProductSales] = useState(null);
+  const [salesRecords, setSalesRecords] = useState([]);
+  const [isLoadingSales, setIsLoadingSales] = useState(false);
 
   // 使用 useMemo 来过滤商品列表
   const filteredProducts = useMemo(() => {
@@ -52,6 +60,73 @@ export default function ProductsPage() {
       console.error("获取商品信息失败:", error);
       toast.error("获取商品信息失败：网络错误");
     }
+  };
+
+  /**
+   * 获取商品销售统计数据
+   */
+  const fetchSalesStats = async () => {
+    try {
+      const response = await fetch("/api/products/sales-stats");
+      const data = await response.json();
+
+      if (data.success) {
+        setSalesStats(data.data);
+      } else {
+        console.error("获取销售统计失败:", data.error);
+      }
+    } catch (error) {
+      console.error("获取销售统计失败:", error);
+    }
+  };
+
+  /**
+   * 获取单个商品的详细销售记录
+   */
+  const fetchProductSalesRecords = async (productId) => {
+    setIsLoadingSales(true);
+    try {
+      const response = await fetch(`/api/products/${productId}/sales-records`);
+      const data = await response.json();
+
+      if (data.success) {
+        setSelectedProductSales(data.data);
+        setSalesRecords(data.data.sales_records);
+        setShowSalesModal(true);
+      } else {
+        toast.error("获取销售记录失败：" + (data.error || "未知错误"));
+      }
+    } catch (error) {
+      console.error("获取销售记录失败:", error);
+      toast.error("获取销售记录失败：网络错误");
+    } finally {
+      setIsLoadingSales(false);
+    }
+  };
+
+  /**
+   * 关闭销售记录模态框
+   */
+  const closeSalesModal = () => {
+    setShowSalesModal(false);
+    setSelectedProductSales(null);
+    setSalesRecords([]);
+  };
+
+  /**
+   * 格式化日期
+   */
+  const formatDate = (dateString) => {
+    const date = new Date(dateString);
+    // 增加8小时的时区偏移
+    date.setHours(date.getHours() + 8);
+    return date.toLocaleString('zh-CN', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
   };
 
 
@@ -165,7 +240,10 @@ export default function ProductsPage() {
   useEffect(() => {
     const initPage = async () => {
       setIsLoading(true);
-      await fetchProducts();
+      await Promise.all([
+        fetchProducts(),
+        fetchSalesStats()
+      ]);
       setIsLoading(false);
     };
 
@@ -324,7 +402,9 @@ export default function ProductsPage() {
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       可用库存
                     </th>
-
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      销售数量
+                    </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       操作
                     </th>
@@ -382,7 +462,38 @@ export default function ProductsPage() {
                             {product.available_stock || 0}
                           </span>
                         </td>
-
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          {(() => {
+                            const salesStat = salesStats.find(stat => stat.id === product.id);
+                            const totalSold = salesStat ? parseInt(salesStat.total_sold) : 0;
+                            return (
+                              <div className="flex items-center space-x-2">
+                                <span
+                                  className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                                    totalSold === 0
+                                      ? "bg-gray-100 text-gray-800"
+                                      : totalSold <= 10
+                                      ? "bg-blue-100 text-blue-800"
+                                      : totalSold <= 50
+                                      ? "bg-purple-100 text-purple-800"
+                                      : "bg-orange-100 text-orange-800"
+                                  }`}
+                                >
+                                  {totalSold}
+                                </span>
+                                {totalSold > 0 && (
+                                  <button
+                                    onClick={() => fetchProductSalesRecords(product.id)}
+                                    className="text-blue-600 hover:text-blue-800 text-xs"
+                                    disabled={isLoadingSales}
+                                  >
+                                    查看记录
+                                  </button>
+                                )}
+                              </div>
+                            );
+                          })()}
+                        </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                           <button
                             onClick={() => showStockAdjustment(product)}
@@ -400,14 +511,22 @@ export default function ProductsPage() {
           )}
         </div>
 
-        {/* 返回首页链接 */}
+        {/* 导航链接 */}
         <div className="text-center mt-8">
-          <Link
-            href="/"
-            className="inline-flex items-center text-blue-600 hover:text-blue-800 font-medium"
-          >
-            ← 返回首页
-          </Link>
+          <div className="flex justify-center gap-6">
+            <Link
+              href="/"
+              className="inline-flex items-center text-blue-600 hover:text-blue-800 font-medium"
+            >
+              ← 返回首页
+            </Link>
+            <Link
+              href="/orders"
+              className="inline-flex items-center text-green-600 hover:text-green-800 font-medium"
+            >
+              📋 订单管理
+            </Link>
+          </div>
         </div>
       </div>
 
@@ -1005,6 +1124,142 @@ export default function ProductsPage() {
                   }`}
                 >
                   {isAdjustingStock ? "调整中..." : "确认调整"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 销售记录详情模态框 */}
+      {showSalesModal && selectedProductSales && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className="relative top-10 mx-auto p-5 border w-11/12 max-w-4xl shadow-lg rounded-md bg-white">
+            <div className="mt-3">
+              {/* 模态框标题 */}
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-medium text-gray-900">
+                  销售记录 - {selectedProductSales.product.name}
+                </h3>
+                <button
+                  onClick={closeSalesModal}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <span className="sr-only">关闭</span>
+                  <svg
+                    className="h-6 w-6"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M6 18L18 6M6 6l12 12"
+                    />
+                  </svg>
+                </button>
+              </div>
+
+              {/* 商品基本信息 */}
+              <div className="bg-gray-50 rounded-lg p-4 mb-6">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div>
+                    <p className="text-sm text-gray-600">商品名称</p>
+                    <p className="font-medium text-gray-900">{selectedProductSales.product.name}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600">条形码</p>
+                    <p className="font-mono text-sm text-gray-900">{selectedProductSales.product.barcode}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600">当前价格</p>
+                    <p className="font-medium text-gray-900">¥{selectedProductSales.product.price}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600">总销售数量</p>
+                    <p className="font-medium text-blue-600">{selectedProductSales.statistics.total_sold}</p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4 mt-4">
+                  <div>
+                    <p className="text-sm text-gray-600">总销售额</p>
+                    <p className="font-medium text-green-600">¥{selectedProductSales.statistics.total_revenue.toFixed(2)}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600">订单数量</p>
+                    <p className="font-medium text-gray-900">{selectedProductSales.statistics.order_count}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* 销售记录列表 */}
+              <div className="mb-4">
+                <h4 className="text-md font-medium text-gray-900 mb-3">详细销售记录</h4>
+                {salesRecords.length === 0 ? (
+                  <p className="text-gray-500 text-center py-4">暂无销售记录</p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
+                            订单号
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
+                            销售时间
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
+                            数量
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
+                            单价
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
+                            小计
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
+                            订单总额
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {salesRecords.map((record, index) => (
+                          <tr key={index} className="hover:bg-gray-50">
+                            <td className="px-4 py-4 whitespace-nowrap">
+                              <span className="text-sm font-mono text-blue-600">#{record.order_id}</span>
+                            </td>
+                            <td className="px-4 py-4 whitespace-nowrap">
+                              <span className="text-sm text-gray-900">{formatDate(record.created_at)}</span>
+                            </td>
+                            <td className="px-4 py-4 whitespace-nowrap">
+                              <span className="text-sm font-medium text-gray-900">{record.quantity}</span>
+                            </td>
+                            <td className="px-4 py-4 whitespace-nowrap">
+                              <span className="text-sm text-gray-900">¥{parseFloat(record.price).toFixed(2)}</span>
+                            </td>
+                            <td className="px-4 py-4 whitespace-nowrap">
+                              <span className="text-sm font-medium text-green-600">¥{parseFloat(record.subtotal).toFixed(2)}</span>
+                            </td>
+                            <td className="px-4 py-4 whitespace-nowrap">
+                              <span className="text-sm text-gray-900">¥{parseFloat(record.final_amount).toFixed(2)}</span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+              {/* 模态框底部按钮 */}
+              <div className="flex justify-end pt-4 border-t border-gray-200">
+                <button
+                  onClick={closeSalesModal}
+                  className="px-6 py-3 text-base font-medium bg-gray-200 text-gray-700 rounded-lg border border-gray-300 hover:bg-gray-300 hover:border-gray-400 transition-all duration-200 shadow-sm"
+                >
+                  关闭
                 </button>
               </div>
             </div>
