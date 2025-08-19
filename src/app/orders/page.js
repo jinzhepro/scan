@@ -66,9 +66,8 @@ export default function OrdersPage() {
    * 格式化日期
    */
   const formatDate = (dateString) => {
-    // 创建日期对象并加上8小时时区偏移
+    // 创建日期对象，不进行时区偏移
     const date = new Date(dateString);
-    // const offsetDate = new Date(date.getTime() + 8 * 60 * 60 * 1000);
     
     return date.toLocaleString('zh-CN', {
       year: 'numeric',
