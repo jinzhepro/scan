@@ -37,6 +37,7 @@ export default function ScannerPage() {
   const [orderItems, setOrderItems] = useState([]);
   const [orderTotal, setOrderTotal] = useState(0);
   const [discountAmount, setDiscountAmount] = useState('');
+  const [isCheckingOut, setIsCheckingOut] = useState(false); // 结算loading状态
 
   // DOM引用
   const videoRef = useRef(null);
@@ -242,6 +243,7 @@ export default function ScannerPage() {
     setOrderItems([]);
     setOrderTotal(0);
     setDiscountAmount('');
+    setIsCheckingOut(false); // 重置结算loading状态
     localStorage.removeItem('scannerOrder');
     
     // 重置扫描相关状态
@@ -272,6 +274,13 @@ export default function ScannerPage() {
       toast.error('订单为空，无法结算');
       return;
     }
+
+    // 防止重复提交
+    if (isCheckingOut) {
+      return;
+    }
+
+    setIsCheckingOut(true); // 开始结算loading
 
     try {
       const totalAmount = orderTotal;
@@ -305,6 +314,8 @@ export default function ScannerPage() {
     } catch (error) {
       console.error('订单结算失败:', error);
       toast.error('订单结算失败，请重试');
+    } finally {
+      setIsCheckingOut(false); // 结束结算loading
     }
   };
 
@@ -1013,9 +1024,23 @@ export default function ScannerPage() {
                 <div className="mt-4 flex justify-end gap-2">
                   <button
                     onClick={handleCheckout}
-                    className="px-6 py-2 bg-blue-500 hover:bg-blue-600 text-white font-medium rounded-lg transition-colors"
+                    disabled={isCheckingOut}
+                    className={`px-6 py-2 text-white font-medium rounded-lg transition-colors flex items-center gap-2 ${
+                      isCheckingOut 
+                        ? 'bg-gray-400 cursor-not-allowed' 
+                        : 'bg-blue-500 hover:bg-blue-600'
+                    }`}
                   >
-                    💳 结算订单
+                    {isCheckingOut ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                        结算中...
+                      </>
+                    ) : (
+                      <>
+                        💳 结算订单
+                      </>
+                    )}
                   </button>
                 </div>
               </div>
