@@ -39,6 +39,7 @@ export async function GET(request, { params }) {
     const result = await sql`
       SELECT 
         o.id as order_id,
+        o.order_number,
         o.total_amount,
         o.discount_amount,
         o.final_amount,

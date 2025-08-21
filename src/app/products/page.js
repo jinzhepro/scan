@@ -31,6 +31,10 @@ export default function ProductsPage() {
   const [selectedProductSales, setSelectedProductSales] = useState(null);
   const [salesRecords, setSalesRecords] = useState([]);
   const [isLoadingSales, setIsLoadingSales] = useState(false);
+  
+  // 添加订单详情状态
+  const [showOrderDetail, setShowOrderDetail] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState(null);
 
   // 使用 useMemo 来过滤商品列表
   const filteredProducts = useMemo(() => {
@@ -111,6 +115,26 @@ export default function ProductsPage() {
     setShowSalesModal(false);
     setSelectedProductSales(null);
     setSalesRecords([]);
+  };
+
+  /**
+   * 获取订单详情
+   */
+  const fetchOrderDetail = async (orderId) => {
+    try {
+      const response = await fetch(`/api/orders/${orderId}`);
+      const result = await response.json();
+
+      if (result.success) {
+        setSelectedOrder(result.order);
+        setShowOrderDetail(true);
+      } else {
+        toast.error('获取订单详情失败');
+      }
+    } catch (error) {
+      console.error('获取订单详情失败:', error);
+      toast.error('获取订单详情失败');
+    }
   };
 
   /**
@@ -1228,7 +1252,12 @@ export default function ProductsPage() {
                         {salesRecords.map((record, index) => (
                           <tr key={index} className="hover:bg-gray-50">
                             <td className="px-4 py-4 whitespace-nowrap">
-                              <span className="text-sm font-mono text-blue-600">#{record.order_id}</span>
+                              <button
+                                onClick={() => fetchOrderDetail(record.order_id)}
+                                className="text-sm font-mono text-blue-600 hover:text-blue-800 hover:underline cursor-pointer"
+                              >
+                                {record.order_number}
+                              </button>
                             </td>
                             <td className="px-4 py-4 whitespace-nowrap">
                               <span className="text-sm text-gray-900">{formatDate(record.created_at)}</span>
@@ -1257,6 +1286,121 @@ export default function ProductsPage() {
               <div className="flex justify-end pt-4 border-t border-gray-200">
                 <button
                   onClick={closeSalesModal}
+                  className="px-6 py-3 text-base font-medium bg-gray-200 text-gray-700 rounded-lg border border-gray-300 hover:bg-gray-300 hover:border-gray-400 transition-all duration-200 shadow-sm"
+                >
+                  关闭
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 订单详情弹窗 */}
+      {showOrderDetail && selectedOrder && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-lg font-semibold text-gray-900">
+                  订单详情 - {selectedOrder.order_number}
+                </h3>
+                <button
+                  onClick={() => setShowOrderDetail(false)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <span className="text-2xl">×</span>
+                </button>
+              </div>
+              
+              {/* 订单基本信息 */}
+              <div className="mb-6">
+                <h4 className="text-md font-medium text-gray-900 mb-3">订单信息</h4>
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <span className="text-gray-800">订单号：</span>
+                    <span className="font-medium text-black">{selectedOrder.order_number}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-800">状态：</span>
+                    <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
+                      {selectedOrder.status === 'completed' ? '已完成' : selectedOrder.status}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-gray-800">创建时间：</span>
+                    <span className="font-medium text-black">{formatDate(selectedOrder.created_at)}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-800">订单金额：</span>
+                    <span className="font-medium text-black">¥{parseFloat(selectedOrder.total_amount).toFixed(2)}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-800">优惠金额：</span>
+                    <span className="font-medium text-red-600">-¥{parseFloat(selectedOrder.discount_amount || 0).toFixed(2)}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-800">实付金额：</span>
+                    <span className="font-medium text-green-600">¥{parseFloat(selectedOrder.final_amount).toFixed(2)}</span>
+                  </div>
+                </div>
+              </div>
+              
+              {/* 商品明细 */}
+              {selectedOrder.items && selectedOrder.items.length > 0 && (
+                <div>
+                  <h4 className="text-md font-medium text-gray-900 mb-3">商品明细</h4>
+                  <div className="border border-gray-200 rounded-lg overflow-hidden">
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
+                            商品名称
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
+                            条形码
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
+                            数量
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
+                            单价
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">
+                            小计
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {selectedOrder.items.map((item, index) => (
+                          <tr key={index} className="hover:bg-gray-50">
+                            <td className="px-4 py-4 whitespace-nowrap">
+                              <span className="text-sm font-medium text-gray-900">{item.product_name}</span>
+                            </td>
+                            <td className="px-4 py-4 whitespace-nowrap">
+                              <span className="text-sm font-mono text-gray-600">{item.barcode}</span>
+                            </td>
+                            <td className="px-4 py-4 whitespace-nowrap">
+                              <span className="text-sm text-gray-900">{item.quantity}</span>
+                            </td>
+                            <td className="px-4 py-4 whitespace-nowrap">
+                              <span className="text-sm text-gray-900">¥{parseFloat(item.price).toFixed(2)}</span>
+                            </td>
+                            <td className="px-4 py-4 whitespace-nowrap">
+                              <span className="text-sm font-medium text-green-600">¥{parseFloat(item.subtotal).toFixed(2)}</span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+              
+              {/* 模态框底部按钮 */}
+              <div className="flex justify-end pt-4 border-t border-gray-200 mt-6">
+                <button
+                  onClick={() => setShowOrderDetail(false)}
                   className="px-6 py-3 text-base font-medium bg-gray-200 text-gray-700 rounded-lg border border-gray-300 hover:bg-gray-300 hover:border-gray-400 transition-all duration-200 shadow-sm"
                 >
                   关闭

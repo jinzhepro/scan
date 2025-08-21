@@ -68,10 +68,12 @@ export async function POST(request) {
           )
         `;
 
-        // 更新商品库存
+        // 更新商品库存（同时减少总库存和可用库存）
         await sql`
           UPDATE products 
-          SET available_stock = available_stock - ${item.quantity}
+          SET 
+            stock = stock - ${item.quantity},
+            available_stock = available_stock - ${item.quantity}
           WHERE barcode = ${item.barcode}
         `;
       }
