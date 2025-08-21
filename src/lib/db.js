@@ -1,4 +1,4 @@
-import postgres from 'postgres';
+import postgres from "postgres";
 
 // 创建PostgreSQL连接
 const sql = postgres(process.env.DATABASE_URL, {
@@ -48,8 +48,6 @@ export async function createProductsTable() {
     return false;
   }
 }
-
-
 
 /**
  * 创建订单表
@@ -101,9 +99,6 @@ export async function createOrderItemsTable() {
   }
 }
 
-
-
-
 /**
  * 初始化数据库表
  */
@@ -116,8 +111,8 @@ export async function initDatabase() {
   }
 
   await createProductsTable();
-  await createOrdersTable(); // 创建订单表
-  await createOrderItemsTable(); // 创建订单商品表
+  await createOrdersTable();
+  await createOrderItemsTable();
 
   console.log("✅ 数据库初始化完成");
 }

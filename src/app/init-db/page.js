@@ -59,7 +59,7 @@ export default function InitDbPage() {
 
       if (data.success) {
         console.log("✅ Database initialized successfully");
-        setResult("数据库初始化成功！已创建商品表。");
+        setResult("数据库初始化成功！已创建所有数据表。");
         // 刷新统计信息
         fetchStats();
       } else {
@@ -156,7 +156,7 @@ export default function InitDbPage() {
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-4">数据库管理</h1>
           <p className="text-gray-600">
-            初始化PostgreSQL数据库表结构，创建商品表。
+            初始化PostgreSQL数据库表结构，创建所有数据表。
           </p>
         </div>
 
@@ -173,7 +173,19 @@ export default function InitDbPage() {
                   {stats.products}
                 </p>
               </div>
-
+              <div className="bg-white p-3 rounded border">
+                <span className="text-gray-600">订单数量:</span>
+                <p className="text-2xl font-bold text-blue-600">
+                  {stats.orders || 0}
+                </p>
+              </div>
+              <div className="bg-white p-3 rounded border">
+                <span className="text-gray-600">订单项数量:</span>
+                <p className="text-2xl font-bold text-blue-600">
+                  {stats.orderItems || 0}
+                </p>
+              </div>
+             
             </div>
           </div>
         )}
@@ -189,7 +201,7 @@ export default function InitDbPage() {
               {isInitializing ? "正在初始化..." : "初始化数据库"}
             </button>
           </div>
-          
+
           {/* 数据库迁移按钮 */}
           <div>
             <button
@@ -344,6 +356,9 @@ export default function InitDbPage() {
                     <code>stock</code> - 库存
                   </li>
                   <li>
+                    <code>available_stock</code> - 可用库存
+                  </li>
+                  <li>
                     <code>expiry_date</code> - 有效期
                   </li>
                   <li>
@@ -356,7 +371,75 @@ export default function InitDbPage() {
               </div>
             </div>
 
+            {/* 订单表 */}
+            <div>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">
+                订单表 (orders)
+              </h3>
+              <div className="bg-gray-50 rounded p-3">
+                <ul className="text-sm text-gray-700 space-y-1">
+                  <li>
+                    <code>id</code> - 主键，自增
+                  </li>
+                  <li>
+                    <code>order_number</code> - 订单号（唯一）
+                  </li>
+                  <li>
+                    <code>total_amount</code> - 总金额
+                  </li>
+                  <li>
+                    <code>discount_amount</code> - 折扣金额
+                  </li>
+                  <li>
+                    <code>final_amount</code> - 最终金额
+                  </li>
+                  <li>
+                    <code>status</code> - 状态
+                  </li>
+                  <li>
+                    <code>created_at</code> - 创建时间
+                  </li>
+                  <li>
+                    <code>updated_at</code> - 更新时间
+                  </li>
+                </ul>
+              </div>
+            </div>
 
+            {/* 订单商品表 */}
+            <div>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">
+                订单商品表 (order_items)
+              </h3>
+              <div className="bg-gray-50 rounded p-3">
+                <ul className="text-sm text-gray-700 space-y-1">
+                  <li>
+                    <code>id</code> - 主键，自增
+                  </li>
+                  <li>
+                    <code>order_id</code> - 订单ID（外键）
+                  </li>
+                  <li>
+                    <code>barcode</code> - 条形码
+                  </li>
+                  <li>
+                    <code>product_name</code> - 商品名称
+                  </li>
+                  <li>
+                    <code>price</code> - 价格
+                  </li>
+                  <li>
+                    <code>quantity</code> - 数量
+                  </li>
+                  <li>
+                    <code>subtotal</code> - 小计
+                  </li>
+                  <li>
+                    <code>created_at</code> - 创建时间
+                  </li>
+                </ul>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -369,10 +452,10 @@ export default function InitDbPage() {
             ← 返回首页
           </Link>
           <Link
-            href="/scanner"
+            href="/products"
             className="inline-flex items-center text-blue-600 hover:text-blue-800 font-medium"
           >
-            开始扫描 →
+            商品管理 →
           </Link>
         </div>
       </div>

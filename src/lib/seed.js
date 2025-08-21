@@ -1461,8 +1461,6 @@ export async function clearAllData() {
   try {
     console.log("🔄 正在清空数据库数据...");
 
-
-
     // 清空商品表
     await sql`DELETE FROM products`;
     console.log("✅ 商品表已清空");
@@ -1560,9 +1558,14 @@ export async function resetDatabase() {
 export async function getDatabaseStats() {
   try {
     const productStats = await sql`SELECT COUNT(*) as count FROM products`;
+    const orderStats = await sql`SELECT COUNT(*) as count FROM orders`;
+    const orderItemsStats =
+      await sql`SELECT COUNT(*) as count FROM order_items`;
 
     return {
       products: parseInt(productStats[0].count),
+      orders: parseInt(orderStats[0].count),
+      orderItems: parseInt(orderItemsStats[0].count),
     };
   } catch (error) {
     console.error("❌ 获取数据库统计信息失败:", error);
