@@ -15,7 +15,7 @@ export default function ScannerPage() {
   const [result, setResult] = useState("");
   const [scanCount, setScanCount] = useState(0);
   const [lastScanTime, setLastScanTime] = useState(0);
-  const [isEditing, setIsEditing] = useState(false);
+  // 移除isEditing状态，始终保持可编辑
   const [editableResult, setEditableResult] = useState("");
   const [productInfo, setProductInfo] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -38,6 +38,9 @@ export default function ScannerPage() {
   const [orderTotal, setOrderTotal] = useState(0);
   const [discountAmount, setDiscountAmount] = useState('');
   const [isCheckingOut, setIsCheckingOut] = useState(false); // 结算loading状态
+  
+  // 视频预览模态框状态
+  const [showVideoModal, setShowVideoModal] = useState(false);
 
   // DOM引用
   const videoRef = useRef(null);
@@ -249,7 +252,6 @@ export default function ScannerPage() {
     // 重置扫描相关状态
     setResult('');
     setEditableResult('');
-    setIsEditing(false);
     setProductInfo(null);
     setScanCount(0);
     setLastScanTime(0);
@@ -320,6 +322,28 @@ export default function ScannerPage() {
   };
 
   /**
+   * 打开视频预览模态框并自动开始扫描
+   */
+  const handleOpenVideoModal = () => {
+    setShowVideoModal(true);
+    // 等待模态框完全打开后自动开始扫描
+    setTimeout(() => {
+      handleStartScan();
+    }, 100);
+  };
+
+  /**
+   * 关闭视频预览模态框并停止扫描
+   */
+  const handleCloseVideoModal = () => {
+    // 如果正在扫描，先停止扫描
+    if (isScanning) {
+      handleStopScan();
+    }
+    setShowVideoModal(false);
+  };
+
+  /**
    * 开始高精度扫描功能
    * 使用优化的摄像头配置开始连续扫描
    */
@@ -332,7 +356,7 @@ export default function ScannerPage() {
     }
 
     console.log("🎥 Video element:", videoRef.current);
-
+    
     setIsScanning(true);
     setResult("");
     setScanCount(0);
@@ -374,10 +398,12 @@ export default function ScannerPage() {
 
             setResult(result.text);
             setEditableResult(result.text);
-            setIsEditing(false); // 新扫描结果时退出编辑模式
 
             // 扫描成功后自动停止扫描
             handleStopScan();
+
+            // 扫描成功后关闭模态框
+            setShowVideoModal(false);
 
             // 自动查询商品信息但不记录历史
             queryProductInfoWithoutHistory(result.text);
@@ -489,35 +515,13 @@ export default function ScannerPage() {
 
 
   /**
-   * 开始编辑扫描结果
-   */
-  const handleStartEdit = () => {
-    setIsEditing(true);
-    setEditableResult(result);
-  };
-
-  /**
-   * 保存编辑的结果
-   */
-  const handleSaveEdit = () => {
-    setResult(editableResult);
-    setIsEditing(false);
-    console.log("✅ Result edited and saved:", editableResult);
-  };
-
-  /**
-   * 取消编辑
-   */
-  const handleCancelEdit = () => {
-    setIsEditing(false);
-    setEditableResult(result);
-  };
-
-  /**
    * 处理编辑内容变化
+   * 直接更新result和editableResult，保持同步
    */
   const handleEditChange = (e) => {
-    setEditableResult(e.target.value);
+    const newValue = e.target.value;
+    setEditableResult(newValue);
+    setResult(newValue);
   };
 
   /**
@@ -549,7 +553,6 @@ export default function ScannerPage() {
     setResult("");
     setScanCount(0);
     setLastScanTime(0);
-    setIsEditing(false);
     setEditableResult("");
     setProductInfo(null);
     setIsLoading(false);
@@ -654,55 +657,57 @@ export default function ScannerPage() {
       <div className="max-w-4xl mx-auto px-2">
         {/* 页面标题 */}
         <div className="text-center mb-4">
-          <h6 className="text-xl font-bold text-gray-900 mb-4">
+          {/* <h6 className="text-xl font-bold text-gray-900 mb-4">
             高精度条形码/二维码扫描器
           </h6>
           <p className="text-gray-600 max-w-2xl mx-auto mb-4">
             使用优化的ZXing JavaScript库从高分辨率摄像头扫描任何支持的1D/2D码。
-          </p>
+          </p> */}
 
-          {/* 导航链接 */}
-          <div className="flex justify-center gap-4">
-            <Link
-              href="/products"
-              className="inline-flex items-center px-4 py-2 bg-green-500 hover:bg-green-600 text-white font-medium rounded-lg transition-colors"
-            >
-              📊 商品管理
-            </Link>
-            <Link
-              href="/orders"
-              className="inline-flex items-center px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white font-medium rounded-lg transition-colors"
-            >
-              📋 订单管理
-            </Link>
-          </div>
+
         </div>
-        {/* 视频预览区域 */}
-        <div className="flex justify-center mb-6">
-          <div className="bg-white rounded-lg shadow-lg p-4 relative w-full max-w-lg">
-            <video
-              ref={videoRef}
-              className="border border-gray-300 rounded w-full"
-              style={{
-                objectFit: "cover",
-                aspectRatio: "4/3",
-                maxWidth: "100%",
-                height: "auto",
-              }}
-            />
+      
 
-            {/* 扫描统计信息 */}
-            {isScanning && (
-              <div className="absolute top-2 right-2 bg-black bg-opacity-70 text-white px-2 py-1 rounded text-xs">
-                扫描次数: {scanCount}
+        {/* 扫描结果显示 */}
+        <div className="max-w-2xl mx-auto">
+          <div className="flex justify-between items-center mb-2">
+            <label className="block text-sm font-medium text-gray-700">
+              扫描结果:
+            </label>
+            <span
+              onClick={isLoading ? undefined : queryProductInfo}
+              className={`text-sm font-medium transition-colors cursor-pointer ${
+                isLoading 
+                  ? "text-gray-400 cursor-not-allowed" 
+                  : "text-blue-600 hover:text-blue-800"
+              }`}
+            >
+              {isLoading ? "查询中..." : "🔍 重新查询"}
+            </span>
+          </div>
+
+          {/* 始终显示编辑模式 */}
+          <div className="space-y-3">
+            <textarea
+              value={editableResult}
+              rows={1}
+              onChange={handleEditChange}
+              className="w-full bg-white border border-gray-300 rounded-lg p-4 min-h-[100px] text-sm text-gray-900 font-mono resize-vertical focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              placeholder="扫描结果将显示在这里，您可以直接编辑..."
+            />
+            
+            {/* 重新查询按钮 - 放在扫描结果下方 */}
+            {result && (
+              <div className="flex justify-center">
+                
               </div>
             )}
           </div>
         </div>
-        {/* 控制按钮 */}
+  {/* 控制按钮 */}
         <div className="flex justify-center gap-4 mb-6">
           <button
-            onClick={handleStartScan}
+            onClick={handleOpenVideoModal}
             disabled={isScanning}
             className="bg-blue-500 hover:bg-blue-600 disabled:bg-gray-400 text-white font-medium py-2 px-6 rounded-lg transition-colors"
           >
@@ -728,66 +733,6 @@ export default function ScannerPage() {
             </button>
           </Link> */}
         </div>
-
-        {/* 扫描结果显示 */}
-        <div className="max-w-2xl mx-auto">
-          <div className="flex justify-between items-center mb-2">
-            <label className="block text-sm font-medium text-gray-700">
-              扫描结果:
-            </label>
-            {result && !isEditing && (
-              <button
-                onClick={handleStartEdit}
-                className="text-blue-600 hover:text-blue-800 text-sm font-medium flex items-center gap-1"
-              >
-                ✏️ 编辑
-              </button>
-            )}
-          </div>
-
-          {isEditing ? (
-            // 编辑模式
-            <div className="space-y-3">
-              <textarea
-                value={editableResult}
-                onChange={handleEditChange}
-                className="w-full bg-white border border-gray-300 rounded-lg p-4 min-h-[100px] text-sm text-gray-900 font-mono resize-vertical focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="编辑扫描结果..."
-                autoFocus
-              />
-              <div className="flex justify-end gap-2">
-                <button
-                  onClick={handleCancelEdit}
-                  className="bg-gray-500 hover:bg-gray-600 text-white font-medium py-1 px-3 rounded text-sm transition-colors"
-                >
-                  取消
-                </button>
-                <button
-                  onClick={handleSaveEdit}
-                  className="bg-green-500 hover:bg-green-600 text-white font-medium py-1 px-3 rounded text-sm transition-colors"
-                >
-                  保存
-                </button>
-              </div>
-            </div>
-          ) : (
-            // 显示模式
-            <div className="bg-white border border-gray-300 rounded-lg p-4 min-h-[100px] relative group">
-              <pre className="whitespace-pre-wrap text-sm text-gray-900 font-mono">
-                {result || "等待扫描结果..."}
-              </pre>
-              {result && (
-                <button
-                  onClick={handleStartEdit}
-                  className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-blue-500 hover:bg-blue-600 text-white text-xs px-2 py-1 rounded"
-                >
-                  编辑
-                </button>
-              )}
-            </div>
-          )}
-        </div>
-
         {/* 商品信息显示 */}
         {result && (
           <div className="max-w-2xl mx-auto mt-6">
@@ -858,12 +803,6 @@ export default function ScannerPage() {
                 {/* 操作按钮 */}
                 <div className="flex justify-end gap-2">
                   <button
-                    onClick={queryProductInfo}
-                    className="px-4 py-2 rounded-lg font-medium text-sm transition-colors bg-blue-500 hover:bg-blue-600 text-white"
-                  >
-                    🔍 重新查询
-                  </button>
-                  <button
                     onClick={showStockAdjustment}
                     className="px-4 py-2 rounded-lg font-medium text-sm transition-colors bg-green-500 hover:bg-green-600 text-white"
                   >
@@ -875,7 +814,6 @@ export default function ScannerPage() {
                   >
                     🛒 加入订单
                   </button>
-
                 </div>
               </div>
             ) : (
@@ -892,16 +830,10 @@ export default function ScannerPage() {
                   </p>
                 </div>
 
-                {/* 操作按钮 */}
-                <div className="flex justify-center gap-2">
-                  <button
-                    onClick={queryProductInfo}
-                    className="px-4 py-2 rounded-lg font-medium text-sm transition-colors bg-blue-500 hover:bg-blue-600 text-white"
-                  >
-                    🔍 查询商品信息
-                  </button>
-
-                </div>
+                {/* 提示信息 */}
+                <p className="text-gray-500 text-sm">
+                  使用上方的重新查询按钮获取商品信息
+                </p>
               </div>
             )}
           </div>
@@ -1428,8 +1360,95 @@ export default function ScannerPage() {
           </div>
         )}
 
+        {/* 视频预览模态框 */}
+        {showVideoModal && (
+          <div 
+            className="fixed inset-0 bg-black flex items-center justify-center z-50"
+            style={{ backgroundColor: 'rgba(0, 0, 0, 0.7)' }}
+            onClick={handleCloseVideoModal}
+          >
+            <div 
+              className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="p-6">
+                {/* 模态框标题 */}
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-lg font-semibold text-gray-900">摄像头预览</h3>
+                  <button
+                    onClick={handleCloseVideoModal}
+                    className="text-gray-400 hover:text-gray-600 transition-colors"
+                  >
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+
+                {/* 视频预览区域 */}
+                <div className="flex justify-center mb-4">
+                  <div className="bg-gray-50 rounded-lg p-4 relative w-full max-w-lg">
+                    <video
+                      ref={videoRef}
+                      className="border border-gray-300 rounded w-full"
+                      style={{
+                        objectFit: "cover",
+                        aspectRatio: "4/3",
+                        maxWidth: "100%",
+                        height: "auto",
+                      }}
+                    />
+
+                    {/* 扫描统计信息 */}
+                    {isScanning && (
+                      <div className="absolute top-2 right-2 bg-black bg-opacity-70 text-white px-2 py-1 rounded text-xs">
+                        扫描次数: {scanCount}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* 模态框底部按钮 */}
+                <div className="flex justify-between items-center">
+                  <div className="flex gap-3">
+                    <button
+                      onClick={handleStartScan}
+                      disabled={isScanning}
+                      className="bg-blue-500 hover:bg-blue-600 disabled:bg-gray-400 text-white font-medium py-2 px-4 rounded-lg transition-colors"
+                    >
+                      {isScanning ? "扫描中..." : "开始扫描"}
+                    </button>
+                    {isScanning && (
+                      <button
+                        onClick={handleStopScan}
+                        className="bg-orange-500 hover:bg-orange-600 text-white font-medium py-2 px-4 rounded-lg transition-colors"
+                      >
+                        停止扫描
+                      </button>
+                    )}
+                  </div>
+                  <button
+                    onClick={handleCloseVideoModal}
+                    className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
+                  >
+                    关闭
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* 页脚信息 */}
         <footer className="text-center mt-12 pt-8 border-t border-gray-200">
+          <div className="flex justify-center gap-4 mb-4">
+            <Link href="/products" className="text-gray-500 hover:text-gray-700 transition-colors">
+              商品管理
+            </Link>
+            <Link href="/orders" className="text-gray-500 hover:text-gray-700 transition-colors">
+              订单管理
+            </Link>
+          </div>
           <p className="text-gray-500 text-sm">
             基于{" "}
             <a
