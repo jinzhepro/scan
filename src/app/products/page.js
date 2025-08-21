@@ -119,7 +119,7 @@ export default function ProductsPage() {
   const formatDate = (dateString) => {
     const date = new Date(dateString);
     // 增加8小时的时区偏移
-    date.setHours(date.getHours() + 8);
+    // date.setHours(date.getHours() + 8);
     return date.toLocaleString('zh-CN', {
       year: 'numeric',
       month: '2-digit',
