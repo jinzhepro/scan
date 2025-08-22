@@ -13,7 +13,7 @@ export default function InitDbPage() {
   const [error, setError] = useState(null);
   const [stats, setStats] = useState(null);
   const [seedLoading, setSeedLoading] = useState(false);
-  const [migrateLoading, setMigrateLoading] = useState(false);
+
 
   /**
    * 获取数据库统计信息
@@ -74,43 +74,7 @@ export default function InitDbPage() {
     }
   };
 
-  /**
-   * 执行数据库迁移
-   */
-  const handleMigration = async () => {
-    setMigrateLoading(true);
-    setResult(null);
-    setError(null);
 
-    try {
-      console.log("🔄 执行数据库迁移...");
-
-      const response = await fetch("/api/migrate-db", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-
-      const data = await response.json();
-
-      if (data.success) {
-        console.log("✅ 数据库迁移成功");
-        setResult(data.message);
-        setError(null);
-      } else {
-        console.error("❌ 数据库迁移失败:", data.error);
-        setError(data.error || "数据库迁移失败");
-        setResult(null);
-      }
-    } catch (err) {
-      console.error("❌ 数据库迁移失败:", err);
-      setError("网络错误：" + err.message);
-      setResult(null);
-    } finally {
-      setMigrateLoading(false);
-    }
-  };
 
   /**
    * 执行种子数据操作
@@ -202,19 +166,7 @@ export default function InitDbPage() {
             </button>
           </div>
 
-          {/* 数据库迁移按钮 */}
-          <div>
-            <button
-              onClick={handleMigration}
-              disabled={migrateLoading}
-              className="bg-orange-500 hover:bg-orange-600 disabled:bg-gray-400 text-white font-medium py-2 px-6 rounded-lg transition-colors"
-            >
-              {migrateLoading ? "正在迁移..." : "执行数据库迁移"}
-            </button>
-            <p className="text-sm text-gray-600 mt-2">
-              如果出现字段不存在错误，请点击此按钮添加缺失的数据库字段
-            </p>
-          </div>
+
         </div>
 
         {/* 种子数据操作 */}
