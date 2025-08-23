@@ -251,14 +251,6 @@ export default function ScannerPage() {
     
     // 重置库存调整状态
     setShowStockModal(false);
-    setStockAdjustment({
-      type: 'add',
-      quantity: '',
-      reason: '',
-      adjustAvailableStock: true,
-      onlyAvailableStock: false,
-    });
-    setIsAdjustingStock(false);
   };
 
   /**
